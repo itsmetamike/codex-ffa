@@ -72,3 +72,26 @@ model EvolutionLog {
   confidence Float?
   createdAt  DateTime @default(now())
 }
+
+model VectorStore {
+  id            String         @id @default(cuid())
+  brand         String         @unique
+  vectorStoreId String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  files         FileMetadata[]
+}
+
+model FileMetadata {
+  id            String       @id @default(cuid())
+  vectorStoreId String
+  vectorStore   VectorStore  @relation(fields: [vectorStoreId], references: [id], onDelete: Cascade)
+  fileId        String       // OpenAI file ID
+  docType       String       // MMM_RESULT, BRAND_SAFETY_GUIDELINES, etc.
+  brand         String
+  title         String?
+  effectiveDate String?
+  status        String       @default("processing")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
