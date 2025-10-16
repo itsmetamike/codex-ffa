@@ -7,19 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Persona {
-  CEO
-  CFO
-  CTO
-  CSO
-}
-
 model Session {
-  id            String        @id @default(cuid())
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id            String         @id @default(cuid())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   brief         String?
-  parsedBrief   Json?
+  parsedBrief   String?        // Changed from Json to String - store JSON as text
   vectorStoreId String?
   ideas         Idea[]
   scores        Score[]
@@ -33,34 +26,34 @@ model Idea {
   session        Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   title          String
   oneLiner       String
-  linkedThemes   String[]
+  linkedThemes   String   // Changed from String[] - store as comma-separated or JSON string
   brandFitGuess  String
-  requiredAssets String[]
-  risks          String[]
+  requiredAssets String   // Changed from String[] - store as comma-separated or JSON string
+  risks          String   // Changed from String[] - store as comma-separated or JSON string
   createdAt      DateTime @default(now())
   scores         Score[]
 }
 
 model Score {
-  id         String   @id @default(cuid())
-  ideaId     String
-  idea       Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-  sessionId  String
-  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  novelty    Int
+  id          String   @id @default(cuid())
+  ideaId      String
+  idea        Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  sessionId   String
+  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  novelty     Int
   feasibility Int
-  roiProxy   Int
-  risk       Int
-  fit        Int
-  rationale  String
-  createdAt  DateTime @default(now())
+  roiProxy    Int
+  risk        Int
+  fit         Int
+  rationale   String
+  createdAt   DateTime @default(now())
 }
 
 model PanelNote {
   id        String   @id @default(cuid())
   sessionId String
   session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  persona   Persona
+  persona   String   // Changed from Persona enum to String
   approval  String
   caution   String
   redFlag   String
@@ -75,7 +68,7 @@ model EvolutionLog {
   actor      String
   summary    String
   details    String?
-  sources    String[]
+  sources    String   // Changed from String[] - store as comma-separated or JSON string
   confidence Float?
   createdAt  DateTime @default(now())
 }
