@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createOrGetStore, listFiles } from "@/lib/vectorstore";
+import { listFiles } from "@/lib/vectorstore";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,9 +16,21 @@ export async function GET(request: NextRequest) {
 
     console.log("[LIST API] Getting vector store for brand:", brand);
 
-    // Get the vector store for this brand
-    const { id: storeId } = await createOrGetStore(brand);
+    // Find existing vector store (don't create if it doesn't exist)
+    // @ts-ignore - Prisma types need regeneration
+    const vectorStore = await prisma.vectorStore.findUnique({
+      where: { brand }
+    });
 
+    if (!vectorStore) {
+      console.log("[LIST API] No vector store found for brand:", brand);
+      return NextResponse.json({
+        storeId: null,
+        files: []
+      });
+    }
+
+    const storeId = vectorStore.vectorStoreId;
     console.log("[LIST API] Vector store ID:", storeId);
 
     // List all files in the store

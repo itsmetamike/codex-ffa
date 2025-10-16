@@ -43,8 +43,14 @@ export const PanelNoteSchema = z.object({
   ask: z.string().min(1)
 });
 
+export const GuardrailItemSchema = z.object({
+  bullet: z.string().min(1),
+  source: z.string().min(1)
+});
+
 export type ParsedBrief = z.infer<typeof ParsedBriefSchema>;
 export type TrendBriefItem = z.infer<typeof TrendBriefItemSchema>;
 export type Idea = z.infer<typeof IdeaSchema>;
 export type Score = z.infer<typeof ScoreSchema>;
 export type PanelNote = z.infer<typeof PanelNoteSchema>;
+export type GuardrailItem = z.infer<typeof GuardrailItemSchema>;
