@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "@/contexts/SessionContext";
+import { StepIndicator } from "@/components/StepIndicator";
+import { PageHeader } from "@/components/PageHeader";
+import { ArrowRight } from "lucide-react";
 
 type DocType = 
   | "MMM_RESULT"
@@ -17,6 +22,8 @@ interface FileMetadata {
 }
 
 export default function IngestPage() {
+  const router = useRouter();
+  const { session, createSession, updateSession } = useSession();
   const [brand, setBrand] = useState("DemoCo");
   const [docType, setDocType] = useState<DocType>("BRAND_KIT");
   const [title, setTitle] = useState("");
@@ -26,6 +33,13 @@ export default function IngestPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<FileMetadata[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Create session if none exists
+  useEffect(() => {
+    if (!session) {
+      createSession();
+    }
+  }, []);
 
   const loadFiles = async () => {
     if (!brand) return;
@@ -126,17 +140,19 @@ export default function IngestPage() {
     }
   };
 
+  const handleContinue = () => {
+    router.push("/brief");
+  };
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-6 py-16">
-      <header className="space-y-2">
-        <p className="text-sm uppercase tracking-[0.4em] text-slate-400">Step 1</p>
-        <h1 className="text-3xl font-semibold text-slate-100">Document Ingestion</h1>
-        <p className="text-slate-300">
-          Upload your brand, performance, and safety documents to seed the vector
-          store. Metadata such as doc type, brand, tags, and effective dates ensure
-          precise retrieval downstream.
-        </p>
-      </header>
+      <StepIndicator currentStep={1} />
+      
+      <PageHeader
+        stepNumber={1}
+        title="Document Ingestion"
+        description="Upload your brand, performance, and safety documents to seed the vector store. Metadata such as doc type, brand, tags, and effective dates ensure precise retrieval downstream."
+      />
 
       {/* Upload Form */}
       <section className="rounded-xl border border-slate-700/70 bg-slate-900/40 p-6">
@@ -154,7 +170,7 @@ export default function IngestPage() {
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
               required
-              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
               placeholder="e.g., DemoCo"
             />
           </div>
@@ -169,7 +185,7 @@ export default function IngestPage() {
               value={docType}
               onChange={(e) => setDocType(e.target.value as DocType)}
               required
-              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
             >
               <option value="MMM_RESULT">MMM Result</option>
               <option value="BRAND_SAFETY_GUIDELINES">Brand Safety Guidelines</option>
@@ -189,7 +205,7 @@ export default function IngestPage() {
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
               placeholder="e.g., Q4 2024 Brand Guidelines"
             />
           </div>
@@ -204,7 +220,7 @@ export default function IngestPage() {
               id="effective-date"
               value={effectiveDate}
               onChange={(e) => setEffectiveDate(e.target.value)}
-              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
             />
           </div>
 
@@ -220,7 +236,7 @@ export default function IngestPage() {
               multiple
               onChange={(e) => setFiles(e.target.files)}
               required
-              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 file:mr-4 file:rounded-md file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700 focus:outline-none"
+              className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 file:mr-4 file:rounded-md file:border-0 file:bg-gold file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-gold/90 focus:outline-none"
             />
             {files && files.length > 0 && (
               <p className="mt-2 text-sm text-slate-400">
@@ -238,7 +254,7 @@ export default function IngestPage() {
           <button
             type="submit"
             disabled={uploading}
-            className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
+            className="w-full rounded-lg bg-gold px-4 py-3 font-semibold text-black hover:bg-gold/90 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
           >
             {uploading ? "Uploading..." : "Upload to Vector Store"}
           </button>
@@ -257,6 +273,18 @@ export default function IngestPage() {
           </div>
         )}
       </section>
+
+      {/* Continue Button */}
+      {uploadedFiles.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleContinue}
+            className="flex items-center gap-2 rounded-lg bg-gold px-6 py-3 font-medium text-black transition-colors hover:bg-gold/90"
+          >
+            Continue to Brief Parsing <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Uploaded Files List */}
       <section className="rounded-xl border border-slate-700/70 bg-slate-900/40 p-6">
@@ -339,7 +367,6 @@ export default function IngestPage() {
           </div>
         )}
       </section>
-
     </main>
   );
 }

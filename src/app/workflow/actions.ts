@@ -102,14 +102,36 @@ Return ONLY the JSON array, no additional text.`
     // Parse JSON response
     let parsed: unknown;
     try {
-      // Try to extract JSON from markdown code blocks if present
-      const jsonMatch = responseText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
-      const jsonText = jsonMatch ? jsonMatch[1] : responseText;
+      // Try multiple extraction strategies
+      let jsonText = responseText;
+      
+      // Strategy 1: Extract from markdown code blocks
+      const codeBlockMatch = responseText.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+      if (codeBlockMatch) {
+        jsonText = codeBlockMatch[1];
+      } else {
+        // Strategy 2: Find JSON array in the text
+        const arrayMatch = responseText.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          jsonText = arrayMatch[0];
+        } else {
+          // Strategy 3: Try to clean up the text
+          jsonText = responseText.trim();
+          // Remove any leading/trailing non-JSON text
+          const firstBracket = jsonText.indexOf('[');
+          const lastBracket = jsonText.lastIndexOf(']');
+          if (firstBracket !== -1 && lastBracket !== -1) {
+            jsonText = jsonText.substring(firstBracket, lastBracket + 1);
+          }
+        }
+      }
+      
       parsed = JSON.parse(jsonText);
     } catch (parseError) {
+      console.error("JSON parsing error. Response text:", responseText);
       return {
         success: false,
-        error: `Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : "Unknown error"}`
+        error: `Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : "Unknown error"}. Please try again.`
       };
     }
 

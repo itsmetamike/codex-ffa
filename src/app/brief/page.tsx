@@ -1,6 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "@/contexts/SessionContext";
+import { StepIndicator } from "@/components/StepIndicator";
+import { PageHeader } from "@/components/PageHeader";
+import { ArrowRight } from "lucide-react";
 import type { ParsedBrief } from "@/lib/schemas";
 
 type Question = {
@@ -15,6 +20,8 @@ type ConversationStep = {
 };
 
 export default function BriefPage() {
+  const router = useRouter();
+  const { session, createSession, updateSession } = useSession();
   const [briefText, setBriefText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ParsedBrief | null>(null);
@@ -29,6 +36,20 @@ export default function BriefPage() {
   const [showEditMode, setShowEditMode] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [showResult, setShowResult] = useState(false);
+
+  // Create session if none exists, load existing brief if available
+  useEffect(() => {
+    if (!session) {
+      createSession();
+    } else if (session.brief) {
+      setBriefText(session.brief);
+      if (session.parsedBrief) {
+        setResult(session.parsedBrief);
+        setShowResult(true);
+        setAnalysisComplete(true);
+      }
+    }
+  }, []);
 
   const handleParse = async () => {
     if (!briefText.trim()) {
@@ -64,6 +85,14 @@ export default function BriefPage() {
       }
 
       setResult(parseData.data);
+
+      // Save brief and parsed data to session
+      if (session) {
+        await updateSession({
+          brief: briefText,
+          parsedBrief: parseData.data,
+        });
+      }
 
       // Step 2: Analyze for missing information
       const analyzeResponse = await fetch("/api/analyze-brief", {
@@ -127,6 +156,13 @@ export default function BriefPage() {
 
       if (mergeData.success) {
         setResult(mergeData.data);
+        
+        // Update session with merged brief
+        if (session) {
+          await updateSession({
+            parsedBrief: mergeData.data,
+          });
+        }
       }
 
       setUserAnswer("");
@@ -175,19 +211,30 @@ export default function BriefPage() {
 
   const handleFieldEdit = async (field: keyof ParsedBrief, value: string | string[]) => {
     if (!result) return;
-    setResult({ ...result, [field]: value });
+    const updatedResult = { ...result, [field]: value };
+    setResult(updatedResult);
+    
+    // Update session with edited brief
+    if (session) {
+      await updateSession({
+        parsedBrief: updatedResult,
+      });
+    }
+  };
+
+  const handleContinue = () => {
+    router.push("/workflow");
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-6 py-16">
-      <header className="space-y-2">
-        <p className="text-sm uppercase tracking-[0.4em] text-slate-400">Step 2</p>
-        <h1 className="text-3xl font-semibold text-slate-100">Brief Parsing</h1>
-        <p className="text-slate-300">
-          Paste a marketer brief and the intent parser agent will normalize it into
-          structured JSON with objectives, audience, timing, KPIs, and constraints.
-        </p>
-      </header>
+    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-6 py-16">
+      <StepIndicator currentStep={2} />
+      
+      <PageHeader
+        stepNumber={2}
+        title="Brief Parsing"
+        description="Paste a marketer brief and the intent parser agent will normalize it into structured JSON with objectives, audience, timing, KPIs, and constraints."
+      />
 
       <section className="space-y-4">
         <div className="space-y-2">
@@ -199,7 +246,7 @@ export default function BriefPage() {
             value={briefText}
             onChange={(e) => setBriefText(e.target.value)}
             placeholder="Paste your marketing brief here..."
-            className="min-h-[200px] w-full rounded-lg border border-slate-700 bg-slate-900/60 px-4 py-3 text-slate-100 placeholder-slate-500 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-500/20"
+            className="min-h-[200px] w-full rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-slate-100 placeholder-slate-500 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
             disabled={isLoading}
           />
         </div>
@@ -207,7 +254,7 @@ export default function BriefPage() {
         <button
           onClick={handleParse}
           disabled={isLoading || !briefText.trim()}
-          className="rounded-lg bg-slate-700 px-6 py-2.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg bg-gold px-6 py-2.5 text-sm font-medium text-black transition-colors hover:bg-gold/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isLoading ? "Parsing..." : "Parse Brief"}
         </button>
@@ -222,12 +269,12 @@ export default function BriefPage() {
 
       {/* Interactive Conversation for Missing Info */}
       {result && questions.length > 0 && (
-        <section className="space-y-4 rounded-xl border border-blue-700/70 bg-blue-900/20 p-6">
+        <section className="space-y-4 rounded-xl border border-gold/30 bg-gold/5 p-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-blue-300">
+            <h2 className="text-lg font-semibold text-gold">
               Let's fill in some details
             </h2>
-            <span className="text-sm text-blue-400">
+            <span className="text-sm text-gold">
               {currentQuestionIndex + 1} of {questions.length}
             </span>
           </div>
@@ -239,8 +286,8 @@ export default function BriefPage() {
                 key={index}
                 className={`rounded-lg p-3 ${
                   step.type === "question"
-                    ? "bg-blue-900/40 text-blue-100"
-                    : "ml-8 bg-slate-800/60 text-slate-200"
+                    ? "bg-gold/10 text-gold"
+                    : "ml-8 bg-slate-900 text-slate-100"
                 }`}
               >
                 <p className="text-sm">{step.content}</p>
@@ -254,7 +301,7 @@ export default function BriefPage() {
               value={userAnswer}
               onChange={(e) => setUserAnswer(e.target.value)}
               placeholder="Type your answer here..."
-              className="min-h-[80px] w-full rounded-lg border border-blue-700/50 bg-slate-900/60 px-4 py-3 text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="min-h-[80px] w-full rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-slate-100 placeholder-slate-500 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
               disabled={isAnswering}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -267,14 +314,14 @@ export default function BriefPage() {
               <button
                 onClick={handleAnswerSubmit}
                 disabled={isAnswering || !userAnswer.trim()}
-                className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-slate-100 transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-gold px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-gold/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isAnswering ? "Processing..." : "Submit"}
               </button>
               <button
                 onClick={handleSkipQuestion}
                 disabled={isAnswering}
-                className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Skip
               </button>
@@ -289,13 +336,13 @@ export default function BriefPage() {
             <h2 className="text-xl font-semibold text-slate-100">Parsed Result</h2>
             <button
               onClick={() => setShowEditMode(!showEditMode)}
-              className="text-sm text-blue-400 hover:text-blue-300"
+              className="text-sm text-gold hover:text-gold"
             >
               {showEditMode ? "View Mode" : "Edit Mode"}
             </button>
           </div>
           
-          <div className="space-y-4 rounded-xl border border-blue-700/70 bg-blue-900/20 p-6">
+          <div className="space-y-4 rounded-xl border border-gold/30 bg-gold/5 p-6">
             <div>
               <h3 className="mb-1 text-sm font-medium text-slate-400">Objective</h3>
               {showEditMode ? (
@@ -303,7 +350,7 @@ export default function BriefPage() {
                   type="text"
                   value={result.objective}
                   onChange={(e) => handleFieldEdit("objective", e.target.value)}
-                  className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-slate-100"
+                  className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-100"
                 />
               ) : (
                 <p className="text-slate-100">{result.objective}</p>
@@ -317,7 +364,7 @@ export default function BriefPage() {
                   type="text"
                   value={result.audience}
                   onChange={(e) => handleFieldEdit("audience", e.target.value)}
-                  className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-slate-100"
+                  className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-100"
                 />
               ) : (
                 <p className="text-slate-100">{result.audience}</p>
@@ -332,7 +379,7 @@ export default function BriefPage() {
                   value={result.timing || ""}
                   onChange={(e) => handleFieldEdit("timing", e.target.value)}
                   placeholder="Optional"
-                  className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-slate-100"
+                  className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-100"
                 />
               ) : (
                 <p className="text-slate-100">{result.timing || "Not specified"}</p>
@@ -346,7 +393,7 @@ export default function BriefPage() {
                   value={result.kpis.join("\n")}
                   onChange={(e) => handleFieldEdit("kpis", e.target.value.split("\n").filter(k => k.trim()))}
                   placeholder="One KPI per line"
-                  className="min-h-[80px] w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-slate-100"
+                  className="min-h-[80px] w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-100"
                 />
               ) : result.kpis.length > 0 ? (
                 <ul className="list-inside list-disc space-y-1 text-slate-100">
@@ -366,7 +413,7 @@ export default function BriefPage() {
                   value={result.constraints.join("\n")}
                   onChange={(e) => handleFieldEdit("constraints", e.target.value.split("\n").filter(c => c.trim()))}
                   placeholder="One constraint per line"
-                  className="min-h-[80px] w-full rounded border border-slate-600 bg-slate-800 px-3 py-1.5 text-slate-100"
+                  className="min-h-[80px] w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-slate-100"
                 />
               ) : result.constraints.length > 0 ? (
                 <ul className="list-inside list-disc space-y-1 text-slate-100">
@@ -415,6 +462,16 @@ export default function BriefPage() {
               }, null, 2)}
             </pre>
           </details>
+
+          {/* Continue Button */}
+          <div className="flex justify-end">
+            <button
+              onClick={handleContinue}
+              className="flex items-center gap-2 rounded-lg bg-gold px-6 py-3 font-medium text-black transition-colors hover:bg-gold/90"
+            >
+              Continue to Workflow <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
         </section>
       )}
     </main>

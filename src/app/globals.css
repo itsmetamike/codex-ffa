@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 body {
   min-height: 100vh;
-  background: linear-gradient(180deg, #0f172a 0%, #111827 50%, #1f2937 100%);
-  color: rgb(226 232 240);
+  background: linear-gradient(180deg, #000000 0%, #0a0a0a 50%, #18181b 100%);
+  color: rgb(255 255 255);
 }
 
 a {
