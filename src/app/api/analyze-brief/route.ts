@@ -14,6 +14,11 @@ const AnalysisSchema = z.object({
 
 const ANALYSIS_PROMPT = `You are a strategic marketing consultant analyzing a campaign brief. Your role is to help the user think deeper and create a stronger, more comprehensive brief through thoughtful conversation.
 
+You will receive:
+1. The original brief text
+2. The parsed brief structure (objective, audience, timing, kpis, constraints)
+3. Any previous Q&A conversation history (if available)
+
 Evaluate the brief and identify opportunities to strengthen it:
 - objective: Is it specific, measurable, and ambitious? Does it articulate the "why"?
 - audience: Is it detailed enough to inform creative decisions? What motivates them?
@@ -35,7 +40,9 @@ Return ONLY valid JSON matching this schema:
 
 Rules for crafting questions:
 - Act as a strategic advisor, not a form-filler
-- IMPORTANT: Generate at least one question for EACH of the 5 fields (objective, audience, timing, kpis, constraints)
+- CRITICAL: Review the parsed brief AND conversation history to avoid asking about information that has already been provided
+- DO NOT ask questions about fields that have already been thoroughly answered in the conversation
+- IMPORTANT: Generate at least one question for EACH of the 5 fields (objective, audience, timing, kpis, constraints) UNLESS that field has been comprehensively addressed
 - Ask questions that help users think deeper about their campaign strategy
 - Challenge vague statements and push for specificity
 - Help users consider implications and opportunities they might have missed
@@ -45,13 +52,13 @@ Rules for crafting questions:
 - For kpis: Ask how success connects to broader business goals, what "great" looks like
 - For constraints: Ask what creative opportunities exist within limitations, budget considerations
 - Questions should feel consultative, not interrogative
-- Generate 5 questions total (one per field) unless the brief is exceptionally comprehensive
+- Generate 5 questions total (one per field) unless the brief is exceptionally comprehensive OR fields have been answered
 - Only return empty arrays with "high" confidence if ALL fields are detailed and strategic`;
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { text } = body;
+    const { text, parsedBrief, conversationHistory } = body;
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json(
@@ -63,13 +70,31 @@ export async function POST(request: NextRequest) {
     const client = getOpenAIClient();
     const model = getModel("INTENT_MODEL");
 
+    // Build context message
+    let contextMessage = `Original Brief:\n${text}`;
+    
+    if (parsedBrief) {
+      contextMessage += `\n\nParsed Brief Structure:\n${JSON.stringify(parsedBrief, null, 2)}`;
+    }
+    
+    if (conversationHistory && conversationHistory.length > 0) {
+      contextMessage += `\n\nConversation History:`;
+      conversationHistory.forEach((step: any, index: number) => {
+        if (step.type === "question") {
+          contextMessage += `\n\nQ${Math.floor(index / 2) + 1}: ${step.content}`;
+        } else if (step.type === "answer") {
+          contextMessage += `\nA: ${step.content}`;
+        }
+      });
+    }
+
     const response = await client.chat.completions.create({
       model,
       temperature: 0,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: ANALYSIS_PROMPT },
-        { role: "user", content: text }
+        { role: "user", content: contextMessage }
       ]
     });
 

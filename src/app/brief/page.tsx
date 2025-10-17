@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/contexts/SessionContext";
 import { StepIndicator } from "@/components/StepIndicator";
 import { PageHeader } from "@/components/PageHeader";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import type { ParsedBrief } from "@/lib/schemas";
 
 type Question = {
@@ -33,6 +33,8 @@ export default function BriefPage() {
   const [conversation, setConversation] = useState<ConversationStep[]>([]);
   const [userAnswer, setUserAnswer] = useState("");
   const [isAnswering, setIsAnswering] = useState(false);
+  const [isIdeating, setIsIdeating] = useState(false);
+  const [isIdeatingBrief, setIsIdeatingBrief] = useState(false);
   const [showEditMode, setShowEditMode] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [showResult, setShowResult] = useState(false);
@@ -100,7 +102,11 @@ export default function BriefPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text: briefText }),
+        body: JSON.stringify({ 
+          text: briefText,
+          parsedBrief: parseData.data,
+          conversationHistory: []
+        }),
       });
 
       const analyzeData = await analyzeResponse.json();
@@ -131,12 +137,16 @@ export default function BriefPage() {
 
     setIsAnswering(true);
     const currentQuestion = questions[currentQuestionIndex];
+    const answerText = userAnswer; // Store answer before clearing
 
     // Add user's answer to conversation
     setConversation(prev => [...prev, {
       type: "answer",
-      content: userAnswer
+      content: answerText
     }]);
+
+    // Clear the input immediately
+    setUserAnswer("");
 
     try {
       // Merge the answer into the brief
@@ -148,7 +158,7 @@ export default function BriefPage() {
         body: JSON.stringify({
           existingBrief: result,
           field: currentQuestion.field,
-          answer: userAnswer
+          answer: answerText
         }),
       });
 
@@ -164,8 +174,6 @@ export default function BriefPage() {
           });
         }
       }
-
-      setUserAnswer("");
 
       // Move to next question or finish
       const nextIndex = currentQuestionIndex + 1;
@@ -206,6 +214,68 @@ export default function BriefPage() {
     } else {
       setQuestions([]);
       setShowResult(true);
+    }
+  };
+
+  const handleIdeate = async () => {
+    if (!result || questions.length === 0) return;
+
+    setIsIdeating(true);
+    const currentQuestion = questions[currentQuestionIndex];
+
+    try {
+      const response = await fetch("/api/ideate-answer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          briefContext: {
+            originalBrief: briefText,
+            parsedBrief: result,
+            conversationHistory: conversation
+          },
+          question: currentQuestion.question
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.answer) {
+        setUserAnswer(data.answer);
+      } else {
+        setError(data.error || "Failed to generate answer");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate answer");
+    } finally {
+      setIsIdeating(false);
+    }
+  };
+
+  const handleIdeateBrief = async () => {
+    setIsIdeatingBrief(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/ideate-brief", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.brief) {
+        setBriefText(data.brief);
+      } else {
+        setError(data.error || "Failed to generate brief");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate brief");
+    } finally {
+      setIsIdeatingBrief(false);
     }
   };
 
@@ -251,13 +321,24 @@ export default function BriefPage() {
           />
         </div>
 
-        <button
-          onClick={handleParse}
-          disabled={isLoading || !briefText.trim()}
-          className="rounded-lg bg-gold px-6 py-2.5 text-sm font-medium text-black transition-colors hover:bg-gold/90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isLoading ? "Parsing..." : "Parse Brief"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleIdeateBrief}
+            disabled={isLoading || isIdeatingBrief}
+            className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Generate a sample marketing brief"
+          >
+            <Sparkles className="h-4 w-4" />
+            {isIdeatingBrief ? "Generating..." : "Ideate"}
+          </button>
+          <button
+            onClick={handleParse}
+            disabled={isLoading || !briefText.trim()}
+            className="rounded-lg bg-gold px-6 py-2.5 text-sm font-medium text-black transition-colors hover:bg-gold/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isLoading ? "Parsing..." : "Parse Brief"}
+          </button>
+        </div>
       </section>
 
       {error && (
@@ -301,8 +382,8 @@ export default function BriefPage() {
               value={userAnswer}
               onChange={(e) => setUserAnswer(e.target.value)}
               placeholder="Type your answer here..."
-              className="min-h-[80px] w-full rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-slate-100 placeholder-slate-500 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
-              disabled={isAnswering}
+              className="min-h-[200px] w-full rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-slate-100 placeholder-slate-500 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+              disabled={isAnswering || isIdeating}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -311,6 +392,15 @@ export default function BriefPage() {
               }}
             />
             <div className="flex gap-2">
+              <button
+                onClick={handleIdeate}
+                disabled={isAnswering || isIdeating}
+                className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Generate an AI-powered answer based on your brief"
+              >
+                <Sparkles className="h-4 w-4" />
+                {isIdeating ? "Generating..." : "Ideate"}
+              </button>
               <button
                 onClick={handleAnswerSubmit}
                 disabled={isAnswering || !userAnswer.trim()}
