@@ -1,5 +1,6 @@
 import { getOpenAIClient } from "./openai";
 import { prisma } from "./prisma";
+import { convertToJSON, needsConversion } from "./fileConverter";
 
 /**
  * Creates a new vector store or retrieves an existing one for a brand.
@@ -77,8 +78,16 @@ export async function uploadFiles(
   }
 
   // Upload each file and attach to vector store
-  for (const file of files) {
+  for (let file of files) {
     try {
+      // Convert CSV/Excel files to JSON if needed
+      const originalFileName = file.name;
+      if (needsConversion(file)) {
+        console.log("[uploadFiles] Converting file to JSON:", file.name);
+        file = await convertToJSON(file);
+        console.log("[uploadFiles] Converted to:", file.name);
+      }
+
       // Step 1: Upload file to OpenAI
       const uploadedFile = await client.files.create({
         file: file,
@@ -203,5 +212,58 @@ export async function listFiles(storeId: string) {
         effective_date: file.effectiveDate || undefined
       }
     }));
+  }
+}
+
+/**
+ * Deletes a file from the vector store and database.
+ * 
+ * @param fileId - The OpenAI file ID to delete
+ * @returns Promise that resolves when deletion is complete
+ */
+export async function deleteFile(fileId: string): Promise<void> {
+  const client = getOpenAIClient();
+
+  try {
+    // Find the file in our database to get the vector store ID
+    const fileMetadata = await prisma.fileMetadata.findFirst({
+      where: { fileId },
+      include: { vectorStore: true }
+    });
+
+    if (!fileMetadata) {
+      throw new Error(`File ${fileId} not found in database`);
+    }
+
+    if (!fileMetadata.vectorStore) {
+      throw new Error(`Vector store relation not loaded for file ${fileId}`);
+    }
+
+    console.log("[deleteFile] Deleting file:", fileId);
+    console.log("[deleteFile] From vector store:", fileMetadata.vectorStore.vectorStoreId);
+
+    // Delete file from vector store (this removes it from the vector store but doesn't delete the file itself)
+    try {
+      // The SDK method signature: vectorStores.files.del(vector_store_id, file_id)
+      // @ts-ignore - TypeScript types may be incomplete
+      await client.vectorStores.files.del(
+        fileMetadata.vectorStore.vectorStoreId,
+        fileId
+      );
+      console.log("[deleteFile] Removed from vector store");
+    } catch (error: any) {
+      console.error("[deleteFile] Error removing from vector store:", error);
+      // Continue with database deletion even if OpenAI API fails
+    }
+    
+    // Delete from our database
+    await prisma.fileMetadata.delete({
+      where: { id: fileMetadata.id }
+    });
+
+    console.log("[deleteFile] Removed from database");
+  } catch (error) {
+    console.error("[deleteFile] Error deleting file:", fileId, error);
+    throw error;
   }
 }

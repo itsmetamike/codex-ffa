@@ -5,14 +5,42 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/contexts/SessionContext";
 import { StepIndicator } from "@/components/StepIndicator";
 import { PageHeader } from "@/components/PageHeader";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Trash2 } from "lucide-react";
 
 type DocType = 
-  | "MMM_RESULT"
-  | "BRAND_SAFETY_GUIDELINES"
+  // Brand & Identity
+  | "BRAND_VOICE"
   | "BRAND_KIT"
+  | "BRAND_GUIDELINES"
+  | "BRAND_SAFETY_GUIDELINES"
+  | "VISUAL_IDENTITY"
+  | "TONE_OF_VOICE"
+  // Audience & Personas
   | "PERSONA"
-  | "CREATIVE_BEST_PRACTICES";
+  | "AUDIENCE_INSIGHTS"
+  | "CUSTOMER_RESEARCH"
+  | "SEGMENTATION_STUDY"
+  // Performance & Analytics
+  | "MMM_RESULT"
+  | "CAMPAIGN_PERFORMANCE"
+  | "ATTRIBUTION_ANALYSIS"
+  | "MARKET_RESEARCH"
+  | "COMPETITIVE_ANALYSIS"
+  // Creative & Content
+  | "CREATIVE_BEST_PRACTICES"
+  | "CREATIVE_LESSONS"
+  | "CONTENT_STRATEGY"
+  | "MESSAGING_FRAMEWORK"
+  | "CAMPAIGN_BRIEF"
+  // Strategy & Planning
+  | "MARKETING_STRATEGY"
+  | "CHANNEL_STRATEGY"
+  | "MEDIA_PLAN"
+  | "BUDGET_ALLOCATION"
+  // Other
+  | "PRODUCT_INFO"
+  | "CASE_STUDY"
+  | "OTHER";
 
 interface FileMetadata {
   id: string;
@@ -25,7 +53,7 @@ export default function IngestPage() {
   const router = useRouter();
   const { session, createSession, updateSession } = useSession();
   const [brand, setBrand] = useState("DemoCo");
-  const [docType, setDocType] = useState<DocType>("BRAND_KIT");
+  const [docType, setDocType] = useState<DocType>("BRAND_VOICE");
   const [title, setTitle] = useState("");
   const [effectiveDate, setEffectiveDate] = useState("");
   const [files, setFiles] = useState<FileList | null>(null);
@@ -33,6 +61,7 @@ export default function IngestPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<FileMetadata[]>([]);
   const [loading, setLoading] = useState(false);
+  const [deletingBrand, setDeletingBrand] = useState(false);
 
   // Create session if none exists
   useEffect(() => {
@@ -141,7 +170,66 @@ export default function IngestPage() {
   };
 
   const handleContinue = () => {
-    router.push("/brief");
+    router.push("/context");
+  };
+
+  const handleDelete = async (fileId: string) => {
+    if (!confirm("Are you sure you want to delete this file?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/vectorstore/delete?fileId=${fileId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setMessage({ type: "success", text: "File deleted successfully" });
+        loadFiles(); // Reload the list
+      } else {
+        const data = await response.json();
+        setMessage({ type: "error", text: data.error || "Failed to delete file" });
+      }
+    } catch (error) {
+      setMessage({ 
+        type: "error", 
+        text: error instanceof Error ? error.message : "An error occurred during deletion" 
+      });
+    }
+  };
+
+  const handleDeleteAllBrand = async () => {
+    if (!brand) return;
+    
+    if (!confirm(`Are you sure you want to delete ALL files and data for brand "${brand}"? This will delete:\n\n- All uploaded files from OpenAI\n- The vector store\n- All database records\n\nThis action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingBrand(true);
+    try {
+      const response = await fetch(`/api/vectorstore/delete-brand?brand=${encodeURIComponent(brand)}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ 
+          type: "success", 
+          text: `Successfully deleted ${data.deletedFiles} files for brand "${brand}"` 
+        });
+        setUploadedFiles([]);
+      } else {
+        setMessage({ type: "error", text: data.error || "Failed to delete brand files" });
+      }
+    } catch (error) {
+      setMessage({ 
+        type: "error", 
+        text: error instanceof Error ? error.message : "An error occurred during deletion" 
+      });
+    } finally {
+      setDeletingBrand(false);
+    }
   };
 
   return (
@@ -187,11 +275,45 @@ export default function IngestPage() {
               required
               className="w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
             >
-              <option value="MMM_RESULT">MMM Result</option>
-              <option value="BRAND_SAFETY_GUIDELINES">Brand Safety Guidelines</option>
-              <option value="BRAND_KIT">Brand Kit</option>
-              <option value="PERSONA">Persona</option>
-              <option value="CREATIVE_BEST_PRACTICES">Creative Best Practices</option>
+              <optgroup label="Brand & Identity">
+                <option value="BRAND_VOICE">Brand Voice</option>
+                <option value="BRAND_KIT">Brand Kit</option>
+                <option value="BRAND_GUIDELINES">Brand Guidelines</option>
+                <option value="BRAND_SAFETY_GUIDELINES">Brand Safety Guidelines</option>
+                <option value="VISUAL_IDENTITY">Visual Identity</option>
+                <option value="TONE_OF_VOICE">Tone of Voice</option>
+              </optgroup>
+              <optgroup label="Audience & Personas">
+                <option value="PERSONA">Persona</option>
+                <option value="AUDIENCE_INSIGHTS">Audience Insights</option>
+                <option value="CUSTOMER_RESEARCH">Customer Research</option>
+                <option value="SEGMENTATION_STUDY">Segmentation Study</option>
+              </optgroup>
+              <optgroup label="Performance & Analytics">
+                <option value="MMM_RESULT">MMM Result</option>
+                <option value="CAMPAIGN_PERFORMANCE">Campaign Performance</option>
+                <option value="ATTRIBUTION_ANALYSIS">Attribution Analysis</option>
+                <option value="MARKET_RESEARCH">Market Research</option>
+                <option value="COMPETITIVE_ANALYSIS">Competitive Analysis</option>
+              </optgroup>
+              <optgroup label="Creative & Content">
+                <option value="CREATIVE_BEST_PRACTICES">Creative Best Practices</option>
+                <option value="CREATIVE_LESSONS">Creative Lessons</option>
+                <option value="CONTENT_STRATEGY">Content Strategy</option>
+                <option value="MESSAGING_FRAMEWORK">Messaging Framework</option>
+                <option value="CAMPAIGN_BRIEF">Campaign Brief</option>
+              </optgroup>
+              <optgroup label="Strategy & Planning">
+                <option value="MARKETING_STRATEGY">Marketing Strategy</option>
+                <option value="CHANNEL_STRATEGY">Channel Strategy</option>
+                <option value="MEDIA_PLAN">Media Plan</option>
+                <option value="BUDGET_ALLOCATION">Budget Allocation</option>
+              </optgroup>
+              <optgroup label="Other">
+                <option value="PRODUCT_INFO">Product Information</option>
+                <option value="CASE_STUDY">Case Study</option>
+                <option value="OTHER">Other</option>
+              </optgroup>
             </select>
           </div>
 
@@ -232,7 +354,7 @@ export default function IngestPage() {
             <input
               type="file"
               id="file-input"
-              accept=".pdf,.txt,.doc,.docx,.csv,.json,.xml,.html,.md,.rtf,.xls,.xlsx,.ppt,.pptx"
+              accept=".pdf,.txt,.doc,.docx,.json,.html,.md,.pptx,.csv,.xls,.xlsx,.c,.cpp,.cs,.css,.go,.java,.js,.php,.py,.rb,.sh,.tex,.ts"
               multiple
               onChange={(e) => setFiles(e.target.files)}
               required
@@ -244,7 +366,9 @@ export default function IngestPage() {
               </p>
             )}
             <p className="mt-2 text-xs text-slate-500">
-              Supported formats: PDF, TXT, DOC, DOCX, CSV, JSON, XML, HTML, MD, RTF, XLS, XLSX, PPT, PPTX
+              Supported formats: PDF, TXT, DOC, DOCX, JSON, HTML, MD, PPTX, CSV, XLS, XLSX, and code files (C, CPP, CS, CSS, GO, JAVA, JS, PHP, PY, RB, SH, TEX, TS)
+              <br />
+              CSV and Excel files are automatically converted to JSON
               <br />
               Maximum file size: 5MB per file
             </p>
@@ -281,16 +405,29 @@ export default function IngestPage() {
             onClick={handleContinue}
             className="flex items-center gap-2 rounded-lg bg-gold px-6 py-3 font-medium text-black transition-colors hover:bg-gold/90"
           >
-            Continue to Brief Parsing <ArrowRight className="h-4 w-4" />
+            Continue to Context Builder <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       )}
 
       {/* Uploaded Files List */}
       <section className="rounded-xl border border-slate-700/70 bg-slate-900/40 p-6">
-        <h2 className="text-xl font-semibold text-slate-100 mb-4">
-          Uploaded Files for {brand}
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-slate-100">
+            Uploaded Files for {brand}
+          </h2>
+          {uploadedFiles.length > 0 && (
+            <button
+              onClick={handleDeleteAllBrand}
+              disabled={deletingBrand}
+              className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              title={`Delete all files for ${brand}`}
+            >
+              <Trash2 className="h-4 w-4" />
+              {deletingBrand ? "Deleting..." : "Delete All"}
+            </button>
+          )}
+        </div>
         
         {loading ? (
           <p className="text-slate-400">Loading files...</p>
@@ -314,6 +451,7 @@ export default function IngestPage() {
                     <th className="px-4 py-3">Effective Date</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Uploaded</th>
+                    <th className="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -358,6 +496,15 @@ export default function IngestPage() {
                       </td>
                       <td className="px-4 py-3 text-slate-300">
                         {new Date(file.createdAt * 1000).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleDelete(file.id)}
+                          className="rounded-lg p-2 text-red-400 hover:bg-red-900/30 hover:text-red-300 transition-colors"
+                          title="Delete file"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </td>
                     </tr>
                   ))}

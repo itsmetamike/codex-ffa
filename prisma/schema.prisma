@@ -18,6 +18,9 @@ model Session {
   scores        Score[]
   panelNotes    PanelNote[]
   evolutionLogs EvolutionLog[]
+  contextPacks  ContextPack[]
+  guardrails    Guardrail[]
+  generations   Generation[]
 }
 
 model Idea {
@@ -94,4 +97,43 @@ model FileMetadata {
   status        String       @default("processing")
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+}
+
+model ContextPack {
+  id                String   @id @default(cuid())
+  sessionId         String
+  session           Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  brandVoice        String
+  visualIdentity    String
+  audienceSummary   String
+  keyInsights       String   // Store as JSON string array
+  creativeLessons   String   // Store as JSON string array
+  strategyHighlights String  // Store as JSON string array
+  budgetNotes       String?
+  risksOrCautions   String   // Store as JSON string array
+  sources           String   // Store as JSON string array of file citations
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Guardrail {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  category  String
+  summary   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Generation {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  brand     String?  // Brand associated with this generation
+  type      String   // "context", "brief"
+  content   String   // JSON string of the generated content
+  step      Int      // Step number where it was generated (2=context, 3=brief)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

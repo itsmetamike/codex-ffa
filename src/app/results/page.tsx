@@ -24,10 +24,10 @@ export default function ResultsPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-6 py-16">
-      <StepIndicator currentStep={4} />
+      <StepIndicator currentStep={5} />
       
       <PageHeader
-        stepNumber={4}
+        stepNumber={5}
         title="Results Dashboard"
         description="Review shortlisted ideas, guardrail compliance, validation scores, supporting evidence, and the C-suite panel responses alongside an evolution log that chronicles every decision."
       />

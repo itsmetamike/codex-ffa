@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOpenAIClient } from "@/lib/openai";
 import { getModel } from "@/config/models";
+import { prisma } from "@/lib/prisma";
 
 const IDEATE_PROMPT = `You are a strategic marketing consultant helping a marketer answer questions about their campaign brief.
 
 Given:
 1. The marketing brief context (objective, audience, timing, KPIs, constraints)
-2. A specific question being asked
+2. Brand Context Pack (if available) - historical brand intelligence
+3. A specific question being asked
 
 Your task: Generate a thoughtful, strategic answer that:
 - Directly addresses the question
@@ -23,7 +25,7 @@ Return ONLY the answer text, no additional formatting or preamble.`;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { briefContext, question } = body;
+    const { briefContext, question, sessionId } = body;
 
     if (!briefContext || !question) {
       return NextResponse.json(
@@ -35,12 +37,36 @@ export async function POST(request: NextRequest) {
     const client = getOpenAIClient();
     const model = getModel("CREATIVE_MODEL");
 
-    const userMessage = `Marketing Brief Context:
-${typeof briefContext === 'string' ? briefContext : JSON.stringify(briefContext, null, 2)}
+    // Fetch Context Pack if sessionId is provided
+    let contextPack = null;
+    if (sessionId) {
+      try {
+        // @ts-expect-error - Prisma types need regeneration
+        contextPack = await (prisma as any).contextPack.findFirst({
+          where: { sessionId },
+          orderBy: { createdAt: 'desc' }
+        });
+      } catch (err) {
+        console.log("[Ideate Answer] No context pack found for session:", sessionId);
+      }
+    }
 
-Question: ${question}
+    let userMessage = `Marketing Brief Context:
+${typeof briefContext === 'string' ? briefContext : JSON.stringify(briefContext, null, 2)}`;
 
-Please provide a strategic answer to this question based on the brief context.`;
+    // Add Context Pack if available
+    if (contextPack) {
+      userMessage += `\n\n=== BRAND CONTEXT PACK ===`;
+      userMessage += `\n\nBrand Voice: ${contextPack.brandVoice}`;
+      userMessage += `\n\nAudience Summary: ${contextPack.audienceSummary}`;
+      
+      const creativeLessons = JSON.parse(contextPack.creativeLessons || '[]');
+      if (creativeLessons.length > 0) {
+        userMessage += `\n\nCreative Lessons:\n${creativeLessons.map((l: string) => `- ${l}`).join('\n')}`;
+      }
+    }
+
+    userMessage += `\n\nQuestion: ${question}\n\nPlease provide a strategic answer to this question based on the brief context and brand intelligence.`;
 
     const response = await client.chat.completions.create({
       model,

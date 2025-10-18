@@ -8,10 +8,12 @@ import { z } from "zod";
 
 export async function summarizeGuardrailsAction({
   brand,
-  brief
+  brief,
+  sessionId
 }: {
   brand: string;
   brief: string;
+  sessionId?: string;
 }): Promise<
   | { success: true; data: z.infer<typeof GuardrailItemSchema>[] }
   | { success: false; error: string }
@@ -49,20 +51,52 @@ export async function summarizeGuardrailsAction({
     // Add the user message with the brief
     await client.beta.threads.messages.create(thread.id, {
       role: "user",
-      content: `Summarize relevant brand safety, legal, and platform rules for this brief. Return bullets with citations to specific file names.
+      content: `You are analyzing brand safety, legal, and platform constraint documents for a marketing campaign. Your task is to extract ALL SAFETY, LEGAL, and COMPLIANCE constraints that apply to this brief FROM EVERY DOCUMENT in the vector store.
 
 Brief:
 ${brief}
 
-Format your response as a JSON array of objects with this structure:
+WHAT TO EXTRACT (CONSTRAINTS ONLY):
+✓ Brand safety rules (violence, adult content, political content, etc.)
+✓ Legal requirements (COPPA, GDPR, CARU, AVMSD, etc.)
+✓ Platform-specific rules (TikTok policies, YouTube policies, Meta policies, Amazon policies, etc.)
+✓ Content restrictions (prohibited themes, messaging, imagery)
+✓ Compliance requirements (age verification, parental consent, data handling)
+✓ Creative restrictions (visual guidelines, messaging dos/don'ts)
+✓ Asset requirements (mandatory disclosures, safety icons, labeling)
+✓ Prohibited practices (targeting restrictions, data usage limits)
+
+WHAT NOT TO EXTRACT (IGNORE THESE):
+✗ Performance metrics (ROAS, CTR, conversion rates, KPIs)
+✗ Budget targets or spend goals
+✗ Marketing strategy recommendations
+✗ Channel mix or media planning
+✗ Audience targeting strategies (unless they're restrictions/prohibitions)
+✗ Creative best practices (unless they're mandatory requirements)
+
+CRITICAL INSTRUCTIONS:
+1. YOU MUST search through EVERY SINGLE document in the vector store - do not stop after finding one relevant document
+2. Extract ONLY safety, legal, and compliance constraints from EACH document
+3. SKIP any performance metrics, business goals, or strategic recommendations
+4. For EACH document you find, extract ALL relevant CONSTRAINTS from it
+5. Each constraint should be a rule, restriction, prohibition, or mandatory requirement
+6. Always cite the exact source document filename for each constraint
+
+SEARCH STRATEGY:
+- First, identify ALL documents in the vector store
+- Then, for EACH document, extract only safety/legal/compliance constraints
+- Filter out business metrics and strategic advice
+- Ensure you've reviewed every document before finalizing your response
+
+Format your response as a JSON array of objects:
 [
   {
-    "bullet": "The specific rule or constraint",
-    "source": "Filename.pdf"
+    "bullet": "Specific safety, legal, or compliance constraint",
+    "source": "Exact_Filename.pdf"
   }
 ]
 
-Return ONLY the JSON array, no additional text.`
+IMPORTANT: Return a COMPLETE list of CONSTRAINTS ONLY from ALL documents. You should have constraints from MULTIPLE different source files. Aim for at least 15-30 constraints total across all documents. Return ONLY the JSON array, no additional text.`
     });
 
     // Create a run with file_search tool and vector store
@@ -142,6 +176,30 @@ Return ONLY the JSON array, no additional text.`
 
     const validated = parsed.map((item) => GuardrailItemSchema.parse(item));
 
+    // Save guardrails to database if sessionId is provided
+    if (sessionId && validated.length > 0) {
+      try {
+        // Delete existing guardrails for this session
+        // @ts-expect-error - Prisma types need regeneration
+        await (prisma as any).guardrail.deleteMany({
+          where: { sessionId }
+        });
+
+        // Create new guardrails
+        // @ts-expect-error - Prisma types need regeneration
+        await (prisma as any).guardrail.createMany({
+          data: validated.map((item) => ({
+            sessionId,
+            category: item.source,
+            summary: item.bullet
+          }))
+        });
+      } catch (dbError) {
+        console.error("Error saving guardrails to database:", dbError);
+        // Don't fail the whole operation if DB save fails
+      }
+    }
+
     return { success: true, data: validated };
   } catch (error) {
     console.error("Error summarizing guardrails:", error);
@@ -167,10 +225,55 @@ async function getOrCreateAssistant(
   // For simplicity, create a new assistant each time
   // In production, you might want to cache this
   const assistant = await client.beta.assistants.create({
-    name: "Guardrails Summarizer",
-    instructions:
-      "You are a helpful assistant that summarizes brand safety, legal, and platform constraints from documents. Always cite the source file names.",
+    name: "Safety & Compliance Constraint Analyzer",
+    instructions: `You are an expert compliance analyst specializing in brand safety, legal constraints, and platform guidelines. Your role is to extract ONLY safety, legal, and compliance CONSTRAINTS from documents - NOT business metrics or strategic advice.
+
+CRITICAL: You MUST search through ALL documents in the vector store, not just the most relevant one.
+
+WHAT YOU EXTRACT (CONSTRAINTS ONLY):
+✓ Brand safety rules and prohibitions
+✓ Legal requirements and regulations
+✓ Platform policy restrictions
+✓ Content prohibitions and restrictions
+✓ Compliance mandates
+✓ Creative restrictions (mandatory requirements)
+✓ Required disclosures and labeling
+✓ Data handling restrictions
+
+WHAT YOU IGNORE (DO NOT EXTRACT):
+✗ Performance metrics (ROAS, CTR, conversion rates)
+✗ Business goals or targets
+✗ Marketing strategy recommendations
+✗ Budget or spend guidance
+✗ Best practices (unless mandatory)
+✗ Optimization suggestions
+
+CORE RESPONSIBILITIES:
+1. Search EVERY document in the vector store systematically
+2. For EACH document found, extract ONLY safety/legal/compliance constraints
+3. Filter out all business metrics, KPIs, and strategic recommendations
+4. Do not stop after finding constraints in one document - continue searching all documents
+5. Missing a safety or legal constraint could have serious implications
+6. Organize findings by source document to show you've reviewed multiple sources
+
+SEARCH STRATEGY (MUST FOLLOW):
+1. First, identify ALL documents available in the vector store
+2. Then systematically review EACH document for constraints only:
+   - Brand safety guidelines (rules and prohibitions)
+   - Platform-specific policies (restrictions and requirements)
+   - Legal and compliance documents (regulations and mandates)
+   - Creative guidelines (mandatory restrictions only, not suggestions)
+   - Content restrictions (prohibitions and limitations)
+3. Ensure your final output includes constraints from MULTIPLE different source files
+
+OUTPUT REQUIREMENTS:
+- Always cite exact source filenames for each constraint
+- Your response should include constraints from MULTIPLE different documents
+- Each item must be a constraint, restriction, prohibition, or mandatory requirement
+- Aim for comprehensive coverage (15-30+ constraints from multiple sources)
+- Prioritize completeness over brevity - extract all relevant constraints`,
     model,
+    temperature: 0.0,
     tools: [{ type: "file_search" }],
     tool_resources: {
       file_search: {

@@ -11,6 +11,7 @@ interface StepIndicatorProps {
 
 const stepRoutes = [
   "/ingest",
+  "/context",
   "/brief",
   "/workflow",
   "/results"
@@ -18,12 +19,13 @@ const stepRoutes = [
 
 const stepNames = [
   "Document Ingestion",
+  "Context Builder",
   "Brief Parsing",
   "Workflow Orchestration",
   "Results Dashboard"
 ];
 
-export function StepIndicator({ currentStep, totalSteps = 4 }: StepIndicatorProps) {
+export function StepIndicator({ currentStep, totalSteps = 5 }: StepIndicatorProps) {
   const router = useRouter();
   
   const canGoPrevious = currentStep > 1;

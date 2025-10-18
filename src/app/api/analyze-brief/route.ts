@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOpenAIClient } from "@/lib/openai";
 import { getModel } from "@/config/models";
+import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
 const AnalysisSchema = z.object({
@@ -18,6 +19,9 @@ You will receive:
 1. The original brief text
 2. The parsed brief structure (objective, audience, timing, kpis, constraints)
 3. Any previous Q&A conversation history (if available)
+4. Brand Context Pack (if available) - historical brand intelligence including voice, identity, audience insights, performance data, creative lessons, and strategy
+
+Use the Brand Context Pack to inform your questions and ensure they align with the brand's established voice, audience, and strategic direction.
 
 Evaluate the brief and identify opportunities to strengthen it:
 - objective: Is it specific, measurable, and ambitious? Does it articulate the "why"?
@@ -58,7 +62,7 @@ Rules for crafting questions:
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { text, parsedBrief, conversationHistory } = body;
+    const { text, parsedBrief, conversationHistory, sessionId } = body;
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json(
@@ -70,11 +74,57 @@ export async function POST(request: NextRequest) {
     const client = getOpenAIClient();
     const model = getModel("INTENT_MODEL");
 
+    // Fetch Context Pack if sessionId is provided
+    let contextPack = null;
+    if (sessionId) {
+      try {
+        // @ts-expect-error - Prisma types need regeneration
+        contextPack = await (prisma as any).contextPack.findFirst({
+          where: { sessionId },
+          orderBy: { createdAt: 'desc' }
+        });
+      } catch (err) {
+        console.log("[Analyze Brief] No context pack found for session:", sessionId);
+      }
+    }
+
     // Build context message
     let contextMessage = `Original Brief:\n${text}`;
     
     if (parsedBrief) {
       contextMessage += `\n\nParsed Brief Structure:\n${JSON.stringify(parsedBrief, null, 2)}`;
+    }
+    
+    // Add Context Pack if available
+    if (contextPack) {
+      contextMessage += `\n\n=== BRAND CONTEXT PACK ===`;
+      contextMessage += `\n\nBrand Voice:\n${contextPack.brandVoice}`;
+      contextMessage += `\n\nVisual Identity:\n${contextPack.visualIdentity}`;
+      contextMessage += `\n\nAudience Summary:\n${contextPack.audienceSummary}`;
+      
+      const keyInsights = JSON.parse(contextPack.keyInsights || '[]');
+      if (keyInsights.length > 0) {
+        contextMessage += `\n\nKey Performance Insights:\n${keyInsights.map((i: string) => `- ${i}`).join('\n')}`;
+      }
+      
+      const creativeLessons = JSON.parse(contextPack.creativeLessons || '[]');
+      if (creativeLessons.length > 0) {
+        contextMessage += `\n\nCreative Lessons:\n${creativeLessons.map((l: string) => `- ${l}`).join('\n')}`;
+      }
+      
+      const strategyHighlights = JSON.parse(contextPack.strategyHighlights || '[]');
+      if (strategyHighlights.length > 0) {
+        contextMessage += `\n\nStrategy Highlights:\n${strategyHighlights.map((s: string) => `- ${s}`).join('\n')}`;
+      }
+      
+      if (contextPack.budgetNotes) {
+        contextMessage += `\n\nBudget Notes:\n${contextPack.budgetNotes}`;
+      }
+      
+      const risks = JSON.parse(contextPack.risksOrCautions || '[]');
+      if (risks.length > 0) {
+        contextMessage += `\n\nRisks & Cautions:\n${risks.map((r: string) => `- ${r}`).join('\n')}`;
+      }
     }
     
     if (conversationHistory && conversationHistory.length > 0) {

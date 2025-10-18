@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+export const GuardrailItemSchema = z.object({
+  bullet: z.string().min(1),
+  source: z.string().min(1)
+});
+
 export const ParsedBriefSchema = z.object({
   objective: z.string().min(1, "Objective is required"),
   audience: z.string().min(1, "Audience is required"),
@@ -43,9 +48,16 @@ export const PanelNoteSchema = z.object({
   ask: z.string().min(1)
 });
 
-export const GuardrailItemSchema = z.object({
-  bullet: z.string().min(1),
-  source: z.string().min(1)
+export const ContextPackSchema = z.object({
+  brand_voice: z.string().min(1),
+  visual_identity: z.string().min(1),
+  audience_summary: z.string().min(1),
+  key_insights: z.array(z.string().min(1)).min(1),
+  creative_lessons: z.array(z.string().min(1)).min(1),
+  strategy_highlights: z.array(z.string().min(1)).min(1),
+  budget_notes: z.string().nullable(),
+  risks_or_cautions: z.array(z.string().min(1)).min(1),
+  guardrails: z.array(GuardrailItemSchema).default([])
 });
 
 export type ParsedBrief = z.infer<typeof ParsedBriefSchema>;
@@ -54,3 +66,4 @@ export type Idea = z.infer<typeof IdeaSchema>;
 export type Score = z.infer<typeof ScoreSchema>;
 export type PanelNote = z.infer<typeof PanelNoteSchema>;
 export type GuardrailItem = z.infer<typeof GuardrailItemSchema>;
+export type ContextPack = z.infer<typeof ContextPackSchema>;

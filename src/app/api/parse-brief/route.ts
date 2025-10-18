@@ -27,7 +27,7 @@ Rules:
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { text, vectorStoreId } = body;
+    const { text } = body;
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json(
