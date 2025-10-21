@@ -12,13 +12,16 @@ Return ONLY valid JSON matching this exact schema:
   "objective": "string (required, min 1 char) - main campaign objective",
   "audience": "string (required, min 1 char) - target audience description",
   "timing": "string (optional) - timeline or deadline information",
+  "budget": "string (optional) - budget amount (preferably with $ figures, e.g., '$500K', '$2M total', '$100K-$250K'), not channel splits",
   "kpis": ["array of strings"] - key performance indicators,
-  "constraints": ["array of strings"] - budget, resource, or other constraints
+  "constraints": ["array of strings"] - resource, brand guidelines, or other non-budget constraints
 }
 
 Rules:
 - Extract information accurately from the brief
 - If a field is not mentioned, use empty string for optional fields or empty array for arrays
+- For budget: extract DOLLAR AMOUNTS or total budget figures (e.g., '$500K', '$2M', '$100K-$250K'), NOT channel allocation percentages
+- For constraints: include non-budget constraints (resources, brand guidelines, etc.)
 - Do not add information not present in the brief
 - Return ONLY the JSON object, no additional text`;
 

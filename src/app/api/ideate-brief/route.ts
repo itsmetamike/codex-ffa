@@ -16,8 +16,9 @@ Your brief should:
 - Include a clear objective with business impact
 - Define a specific target audience with motivations (aligned with brand's audience)
 - Mention timing considerations or launch windows
+- Include a budget amount with $ figures (e.g., '$500K', '$2M', '$100K-$250K range')
 - List 2-3 measurable KPIs
-- Note any constraints (budget, resources, brand guidelines, etc.)
+- Note any constraints (resources, brand guidelines, etc.)
 - Be 100-150 words
 - Sound professional and strategic
 - Reflect the brand's voice and strategic priorities

@@ -18,6 +18,7 @@ Return ONLY valid JSON matching this schema:
   "objective": "string (required, min 1 char)",
   "audience": "string (required, min 1 char)",
   "timing": "string (optional)",
+  "budget": "string (optional)",
   "kpis": ["array of strings"],
   "constraints": ["array of strings"]
 }
@@ -28,6 +29,7 @@ Rules:
 - For objective: Ensure it captures both the "what" and the "why"
 - For audience: Weave in motivations, behaviors, and psychographics beyond demographics
 - For timing: Include strategic rationale, not just dates
+- For budget: Include dollar amounts and strategic allocation context
 - For kpis: Frame metrics in terms of business impact and success criteria
 - For constraints: Identify both limitations and creative opportunities
 - Maintain professional yet compelling marketing language

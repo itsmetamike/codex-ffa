@@ -80,6 +80,35 @@ export default function HomePage() {
         )}
       </div>
 
+      {process.env.NODE_ENV === 'development' && session && (
+        <Button
+          onClick={async () => {
+            if (!session?.id) return;
+            if (!confirm('Clear all generation records for this session?')) return;
+            
+            try {
+              const response = await fetch('/api/generations/clear', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: session.id })
+              });
+              
+              const data = await response.json();
+              if (data.success) {
+                alert(`Cleared ${data.deleted} generation records`);
+                window.location.reload();
+              }
+            } catch (error) {
+              console.error('Error clearing generations:', error);
+            }
+          }}
+          variant="outline"
+          className="gap-2 border-red-600 text-red-400 hover:bg-red-900/20"
+        >
+          Clear Generations (Dev)
+        </Button>
+      )}
+
       <nav className="grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
         {navLinks.map((link) => (
           <Button

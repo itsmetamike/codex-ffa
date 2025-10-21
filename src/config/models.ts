@@ -11,9 +11,9 @@ type ModelConfig = Record<ModelKey, string>;
 const DEFAULT_MODELS: ModelConfig = {
   INTENT_MODEL: "gpt-4o-mini",
   SYNTHESIS_MODEL: "gpt-4o",
-  CREATIVE_MODEL: "gpt-5",
+  CREATIVE_MODEL: "gpt-4o",
   SCORING_MODEL: "gpt-4o-mini",
-  REASONING_MODEL: "o3-pro",
+  REASONING_MODEL: "o1-preview",
   EMBEDDING_MODEL: "text-embedding-3-large"
 };
 

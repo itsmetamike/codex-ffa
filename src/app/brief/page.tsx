@@ -43,6 +43,7 @@ export default function BriefPage() {
     objective: true,
     audience: false,
     timing: false,
+    budget: false,
     kpis: false,
     constraints: false
   });
@@ -195,6 +196,9 @@ export default function BriefPage() {
             parsedBrief: mergeData.data,
           });
         }
+        
+        // Don't save generation here - wait until all questions are done
+        // to include the complete conversation log
       }
 
       // Move to next question or finish
@@ -215,6 +219,10 @@ export default function BriefPage() {
       // Clear questions and show result when done
       const nextIndex = currentQuestionIndex + 1;
       if (nextIndex >= questions.length) {
+        // Final save with complete conversation
+        if (result) {
+          await saveGeneration(result);
+        }
         // Use setTimeout to ensure state updates happen after isAnswering is false
         setTimeout(() => {
           setQuestions([]);
@@ -224,7 +232,7 @@ export default function BriefPage() {
     }
   };
 
-  const handleSkipQuestion = () => {
+  const handleSkipQuestion = async () => {
     const nextIndex = currentQuestionIndex + 1;
     if (nextIndex < questions.length) {
       setCurrentQuestionIndex(nextIndex);
@@ -234,6 +242,10 @@ export default function BriefPage() {
         field: questions[nextIndex].field
       }]);
     } else {
+      // Final save with complete conversation when skipping to finish
+      if (result) {
+        await saveGeneration(result);
+      }
       setQuestions([]);
       setShowResult(true);
     }
@@ -363,13 +375,19 @@ export default function BriefPage() {
     if (!session?.id) return;
 
     try {
+      // Include conversation history if it exists
+      const contentWithConversation = {
+        ...parsedBrief,
+        conversationLog: conversation.length > 0 ? conversation : undefined
+      };
+
       await fetch('/api/generations/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: session.id,
           type: 'brief',
-          content: parsedBrief,
+          content: contentWithConversation,
           step: 3
         })
       });
@@ -632,6 +650,35 @@ export default function BriefPage() {
                   />
                 ) : (
                   <p className="text-sm text-slate-300">{result.timing || "Not specified"}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Budget Section */}
+          <div className="rounded-lg border border-slate-700 bg-slate-900/50 overflow-hidden">
+            <button
+              onClick={() => toggleSection('budget')}
+              className="flex w-full items-center justify-between p-4 text-left hover:bg-slate-800/50 transition-colors"
+            >
+              <h3 className="text-sm font-semibold text-slate-200">Budget</h3>
+              {expandedSections.budget ? (
+                <ChevronDown className="h-4 w-4 text-slate-400" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-slate-400" />
+              )}
+            </button>
+            {expandedSections.budget && (
+              <div className="p-4 pt-0">
+                {showEditMode ? (
+                  <textarea
+                    value={editedResult.budget || ""}
+                    onChange={(e) => handleFieldEdit("budget", e.target.value)}
+                    placeholder="Optional budget information"
+                    className="w-full min-h-[60px] rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+                  />
+                ) : (
+                  <p className="text-sm text-slate-300">{result.budget || "Not specified"}</p>
                 )}
               </div>
             )}

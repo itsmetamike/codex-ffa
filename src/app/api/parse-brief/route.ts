@@ -11,8 +11,9 @@ Return ONLY valid JSON matching this exact schema:
   "objective": "string (required, min 1 char) - main campaign objective",
   "audience": "string (required, min 1 char) - target audience description",
   "timing": "string (optional) - timeline or deadline information",
+  "budget": "string (optional) - budget amount (preferably with $ figures, e.g., '$500K', '$2M total', '$100K-$250K'), not channel splits",
   "kpis": ["array of strings"] - key performance indicators,
-  "constraints": ["array of strings"] - budget, resource, or other constraints
+  "constraints": ["array of strings"] - resource, brand guidelines, or other non-budget constraints
 }
 
 Rules:
@@ -20,7 +21,9 @@ Rules:
 - objective and audience are REQUIRED fields and must have at least 1 character
 - If objective is not clear, use "Not specified" or describe what you can infer
 - If audience is not clear, use "Not specified" or describe what you can infer
-- For timing, kpis, and constraints: use empty string/array if not mentioned
+- For budget: extract DOLLAR AMOUNTS or total budget figures (e.g., '$500K', '$2M', '$100K-$250K'), NOT channel allocation percentages
+- For constraints: include non-budget constraints (resources, brand guidelines, etc.)
+- For timing, budget, kpis, and constraints: use empty string/array if not mentioned
 - Do not fabricate specific details, but do provide reasonable interpretations
 - Return ONLY the JSON object, no additional text`;
 

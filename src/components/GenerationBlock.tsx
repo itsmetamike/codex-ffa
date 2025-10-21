@@ -1,14 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import { Sparkles, ChevronDown, Edit2 } from "lucide-react";
+import { useState } from "react";
 
-type GenerationType = "context" | "brief";
+type GenerationType = "context" | "brief" | "exploration-selection";
 
 interface GenerationBlockProps {
   type: GenerationType;
   title: string;
   preview: string;
+  fullContent: string;
   timestamp: Date;
   onClick?: () => void;
 }
@@ -25,14 +27,22 @@ const typeConfig: Record<GenerationType, { color: string; bgColor: string; borde
     bgColor: "bg-gold/10",
     borderColor: "border-gold/30",
     route: "/brief"
+  },
+  "exploration-selection": {
+    color: "text-gold",
+    bgColor: "bg-gold/10",
+    borderColor: "border-gold/30",
+    route: "/workflow"
   }
 };
 
-export function GenerationBlock({ type, title, preview, timestamp, onClick }: GenerationBlockProps) {
+export function GenerationBlock({ type, title, preview, fullContent, timestamp, onClick }: GenerationBlockProps) {
   const router = useRouter();
   const config = typeConfig[type];
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  const handleClick = () => {
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (onClick) {
       onClick();
     } else {
@@ -40,30 +50,63 @@ export function GenerationBlock({ type, title, preview, timestamp, onClick }: Ge
     }
   };
 
+  const toggleExpand = () => {
+    setIsExpanded(!isExpanded);
+  };
+
+  const formatContent = (content: string) => {
+    try {
+      const parsed = JSON.parse(content);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return content;
+    }
+  };
+
   return (
-    <button
-      onClick={handleClick}
-      className={`w-full text-left rounded-lg border ${config.borderColor} ${config.bgColor} p-4 transition-all hover:scale-[1.02] hover:shadow-lg`}
+    <div
+      className={`w-full rounded-lg border ${config.borderColor} ${config.bgColor} transition-all`}
     >
-      <div className="flex items-start gap-3">
-        <div className={`mt-0.5 ${config.color}`}>
-          <Sparkles className="h-4 w-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <h3 className={`text-sm font-semibold ${config.color}`}>
-              {title}
-            </h3>
-            <span className="text-xs text-slate-500 whitespace-nowrap">
-              {new Date(timestamp).toLocaleDateString()}
-            </span>
+      <button
+        onClick={toggleExpand}
+        className="w-full text-left p-4 hover:bg-gold/5 transition-colors"
+      >
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5">
+            <ChevronDown 
+              className={`h-4 w-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            />
           </div>
-          <p className="text-xs text-slate-400 line-clamp-2">
-            {preview}
-          </p>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className={`text-sm font-semibold ${config.color}`}>
+                {title}
+              </h3>
+              <span className="text-xs text-slate-500 whitespace-nowrap">
+                {new Date(timestamp).toLocaleDateString()}
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
-    </button>
+      </button>
+      
+      {isExpanded && (
+        <div className="px-4 pb-4 space-y-3">
+          <div className="border-t border-gold/20 pt-3">
+            <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono bg-slate-900/50 p-3 rounded max-h-96 overflow-y-auto">
+              {formatContent(fullContent)}
+            </pre>
+          </div>
+          <button
+            onClick={handleEdit}
+            className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gold bg-gold/10 hover:bg-gold/20 rounded-lg transition-colors"
+          >
+            <Edit2 className="h-3 w-3" />
+            Edit
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -82,11 +125,12 @@ export function GenerationBlocksContainer({ generations, currentStep }: Generati
   // Filter to only show generations from previous steps
   const visibleGenerations = currentStep 
     ? generations.filter(g => {
-        const stepMap: Record<GenerationType, number> = {
+        const stepMap: Record<string, number> = {
           context: 2,
-          brief: 3
+          brief: 3,
+          "exploration-selection": 4
         };
-        return stepMap[g.type as GenerationType] < currentStep;
+        return stepMap[g.type] && stepMap[g.type] < currentStep;
       })
     : generations;
 
@@ -107,7 +151,8 @@ export function GenerationBlocksContainer({ generations, currentStep }: Generati
     }
     const titles: Record<GenerationType, string> = {
       context: "Context Pack",
-      brief: "Strategy Brief"
+      brief: "Strategy Brief",
+      "exploration-selection": "Exploration Categories"
     };
     return titles[type];
   };
@@ -121,6 +166,14 @@ export function GenerationBlocksContainer({ generations, currentStep }: Generati
           return parsed.brand_voice?.substring(0, 100) || "Context pack generated";
         case "brief":
           return parsed.objective?.substring(0, 100) || "Brief parsed successfully";
+        case "exploration-selection":
+          if (parsed.categories && Array.isArray(parsed.categories)) {
+            const totalSubs = parsed.categories.reduce((acc: number, cat: any) => 
+              acc + (cat.subcategories?.length || 0), 0
+            );
+            return `${totalSubs} categories selected`;
+          }
+          return "Categories selected";
         default:
           return "Generated content";
       }
@@ -145,6 +198,7 @@ export function GenerationBlocksContainer({ generations, currentStep }: Generati
             type={gen.type as GenerationType}
             title={getTitle(gen.type as GenerationType, gen.brand)}
             preview={getPreview(gen.type as GenerationType, gen.content)}
+            fullContent={gen.content}
             timestamp={gen.createdAt}
           />
         ))}

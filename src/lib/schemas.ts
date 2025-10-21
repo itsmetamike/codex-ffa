@@ -9,6 +9,7 @@ export const ParsedBriefSchema = z.object({
   objective: z.string().min(1, "Objective is required"),
   audience: z.string().min(1, "Audience is required"),
   timing: z.string().optional(),
+  budget: z.string().optional(),
   kpis: z.array(z.string().min(1)).default([]),
   constraints: z.array(z.string().min(1)).default([])
 });
