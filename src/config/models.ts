@@ -4,7 +4,8 @@ export type ModelKey =
   | "CREATIVE_MODEL"
   | "SCORING_MODEL"
   | "REASONING_MODEL"
-  | "EMBEDDING_MODEL";
+  | "EMBEDDING_MODEL"
+  | "DEEP_RESEARCH_MODEL";
 
 type ModelConfig = Record<ModelKey, string>;
 
@@ -14,7 +15,8 @@ const DEFAULT_MODELS: ModelConfig = {
   CREATIVE_MODEL: "gpt-4o",
   SCORING_MODEL: "gpt-4o-mini",
   REASONING_MODEL: "o1-preview",
-  EMBEDDING_MODEL: "text-embedding-3-large"
+  EMBEDDING_MODEL: "text-embedding-3-large",
+  DEEP_RESEARCH_MODEL: "o3-deep-research"
 };
 
 function readEnvModel(key: ModelKey) {
@@ -30,7 +32,8 @@ export function getModelConfig(): ModelConfig {
     CREATIVE_MODEL: readEnvModel("CREATIVE_MODEL"),
     SCORING_MODEL: readEnvModel("SCORING_MODEL"),
     REASONING_MODEL: readEnvModel("REASONING_MODEL"),
-    EMBEDDING_MODEL: readEnvModel("EMBEDDING_MODEL")
+    EMBEDDING_MODEL: readEnvModel("EMBEDDING_MODEL"),
+    DEEP_RESEARCH_MODEL: readEnvModel("DEEP_RESEARCH_MODEL")
   };
 }
 

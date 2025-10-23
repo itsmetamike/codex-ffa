@@ -43,7 +43,7 @@ Do not include any markdown formatting or additional text. Return only the raw J
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { sessionId, messages, action } = body;
+    const { sessionId, messages, action, focusAreas } = body;
 
     if (!sessionId) {
       return NextResponse.json(
@@ -315,12 +315,21 @@ Research Priorities:
 ${summaryData.summary.researchPriorities.map((priority: string) => `- ${priority}`).join('\n')}
 ` : ''}
 
+${focusAreas && focusAreas.length > 0 ? `
+**RESEARCH FOCUS AREAS**
+The research should emphasize these strategic angles:
+${focusAreas.map((area: string) => `- ${area}`).join('\n')}
+
+Ensure the strategies and recommendations align with these focus areas where applicable.
+` : ''}
+
 ${DEEP_RESEARCH_TEMPLATE}`;
 
       // Build the comprehensive research package
       const researchPackage = {
         summary: summaryData.summary,
         deepResearchPrompt: deepResearchPrompt,
+        focusAreas: focusAreas || [],
         data: {
           contextPack: contextPackJson,
           strategyBrief: strategyBriefJson,

@@ -14,7 +14,8 @@ const stepRoutes = [
   "/context",
   "/brief",
   "/workflow",
-  "/results"
+  "/results",
+  "/deep-research"
 ];
 
 const stepNames = [
@@ -22,10 +23,11 @@ const stepNames = [
   "Context Builder",
   "Brief Parsing",
   "Workflow Orchestration",
-  "Results Dashboard"
+  "Pre-Research Consultation",
+  "Deep Research"
 ];
 
-export function StepIndicator({ currentStep, totalSteps = 5 }: StepIndicatorProps) {
+export function StepIndicator({ currentStep, totalSteps = 6 }: StepIndicatorProps) {
   const router = useRouter();
   
   const canGoPrevious = currentStep > 1;
