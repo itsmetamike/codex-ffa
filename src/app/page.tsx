@@ -7,7 +7,8 @@ import { Sparkles, ArrowRight } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 
 const navLinks = [
-  { href: "/ingest", label: "Ingest Documents" },
+  { href: "/knowledge-hub", label: "Knowledge Hub" },
+  { href: "/context", label: "Context Builder" },
   { href: "/brief", label: "Parse Brief" },
   { href: "/workflow", label: "Run Workflow" },
   { href: "/results", label: "View Results" }
@@ -20,14 +21,14 @@ export default function HomePage() {
   const handleStartNewSession = async () => {
     try {
       await createSession();
-      router.push("/ingest");
+      router.push("/context");
     } catch (error) {
       console.error("Failed to create session:", error);
     }
   };
 
   const handleContinueSession = () => {
-    router.push("/ingest");
+    router.push("/context");
   };
 
   return (
@@ -40,12 +41,12 @@ export default function HomePage() {
           Welcome to Magentic
         </h1>
         <p className="text-lg text-zinc-300">
-          A multi-stage content strategy pipeline: ingest brand documents, parse marketing briefs,
+          A multi-stage content strategy pipeline: manage brand knowledge, build context packs, parse marketing briefs,
           orchestrate AI workflows, and review scored ideas with panel feedback.
         </p>
         <p className="text-lg text-slate-300 md:text-xl">
-          Upload your brand intelligence, parse the marketer brief, and orchestrate
-          a guardrailed, multi-agent workflow that synthesizes trends, ideas, and
+          Centralize your brand intelligence in the Knowledge Hub, then leverage it across
+          multiple agentic workflows to synthesize trends, generate ideas, and gather
           executive feedback.
         </p>
       </section>

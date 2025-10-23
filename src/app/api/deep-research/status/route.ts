@@ -6,10 +6,39 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const jobId = searchParams.get("jobId");
+    const sessionId = searchParams.get("sessionId");
+
+    // Handle session-based lookup (get latest job for session)
+    if (sessionId && !jobId) {
+      const job = await (prisma as any).deepResearchJob.findFirst({
+        where: { sessionId },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (!job) {
+        return NextResponse.json({
+          success: true,
+          job: null
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        job: {
+          id: job.id,
+          status: job.status,
+          result: job.result,
+          error: job.error,
+          toolCalls: job.toolCalls,
+          completedAt: job.completedAt,
+          template: job.template
+        }
+      });
+    }
 
     if (!jobId) {
       return NextResponse.json(
-        { success: false, error: "Job ID is required" },
+        { success: false, error: "Job ID or Session ID is required" },
         { status: 400 }
       );
     }
@@ -57,7 +86,9 @@ export async function GET(request: NextRequest) {
         // Extract output text and tool calls
         const result = {
           outputText: response.output_text || "",
-          output: response.output || []
+          output: response.output || [],
+          researchNotebook: response.output_text || "", // Store markdown research
+          phase: 'research' // Phase 1 completed, ready for structuring
         };
         
         updateData.result = JSON.stringify(result);

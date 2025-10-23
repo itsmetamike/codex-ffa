@@ -144,6 +144,7 @@ model DeepResearchJob {
   responseId      String   @unique // OpenAI response ID for background job
   status          String   // "pending", "in_progress", "completed", "failed"
   prompt          String   // The research prompt sent to the model
+  template        String   @default("strategy") // "strategy" or "big-idea"
   result          String?  // JSON string of the research result
   error           String?  // Error message if failed
   toolCalls       String?  // JSON array of tool calls made during research

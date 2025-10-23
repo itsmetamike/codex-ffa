@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
 const AnalysisSchema = z.object({
-  missingFields: z.array(z.enum(["objective", "audience", "timing", "kpis", "constraints"])),
+  missingFields: z.array(z.enum(["objective", "audience", "timing", "budget", "kpis", "constraints"])),
   questions: z.array(z.object({
     field: z.string(),
     question: z.string()
@@ -27,6 +27,7 @@ Evaluate the brief and identify opportunities to strengthen it:
 - objective: Is it specific, measurable, and ambitious? Does it articulate the "why"?
 - audience: Is it detailed enough to inform creative decisions? What motivates them?
 - timing: Are there strategic considerations around timing and market conditions?
+- budget: Is the budget clearly defined? Are there allocation priorities or efficiency opportunities?
 - kpis: Are the success metrics aligned with business goals? Are they ambitious yet achievable?
 - constraints: Have all potential limitations been considered? Are there creative opportunities within constraints?
 
@@ -46,17 +47,18 @@ Rules for crafting questions:
 - Act as a strategic advisor, not a form-filler
 - CRITICAL: Review the parsed brief AND conversation history to avoid asking about information that has already been provided
 - DO NOT ask questions about fields that have already been thoroughly answered in the conversation
-- IMPORTANT: Generate at least one question for EACH of the 5 fields (objective, audience, timing, kpis, constraints) UNLESS that field has been comprehensively addressed
+- IMPORTANT: Generate at least one question for EACH of the 6 fields (objective, audience, timing, budget, kpis, constraints) UNLESS that field has been comprehensively addressed
 - Ask questions that help users think deeper about their campaign strategy
 - Challenge vague statements and push for specificity
 - Help users consider implications and opportunities they might have missed
 - For objective: Ask about the deeper business impact, not just what they want to do
 - For audience: Ask about motivations, pain points, behaviors - not just demographics
 - For timing: Ask about strategic timing, market conditions, competitive landscape, or launch windows
+- For budget: Ask about allocation priorities, efficiency opportunities, or investment rationale
 - For kpis: Ask how success connects to broader business goals, what "great" looks like
-- For constraints: Ask what creative opportunities exist within limitations, budget considerations
+- For constraints: Ask what creative opportunities exist within limitations
 - Questions should feel consultative, not interrogative
-- Generate 5 questions total (one per field) unless the brief is exceptionally comprehensive OR fields have been answered
+- Generate 6 questions total (one per field) unless the brief is exceptionally comprehensive OR fields have been answered
 - Only return empty arrays with "high" confidence if ALL fields are detailed and strategic`;
 
 export async function POST(request: NextRequest) {
@@ -78,8 +80,7 @@ export async function POST(request: NextRequest) {
     let contextPack = null;
     if (sessionId) {
       try {
-        // @ts-expect-error - Prisma types need regeneration
-        contextPack = await (prisma as any).contextPack.findFirst({
+        contextPack = await prisma.contextPack.findFirst({
           where: { sessionId },
           orderBy: { createdAt: 'desc' }
         });

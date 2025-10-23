@@ -23,12 +23,33 @@ export async function createOrGetStore(brand: string): Promise<{ id: string }> {
       return { id: existing.vectorStoreId };
     }
 
+    const client = getOpenAIClient();
+
+    // Auto-discovery: Search OpenAI for existing vector stores by name
+    console.log("[createOrGetStore] Searching OpenAI for existing vector store...");
+    const allStores = await client.vectorStores.list({ limit: 100 });
+    const matchingStore = allStores.data.find(
+      store => store.name === `${brand} Knowledge Base`
+    );
+
+    if (matchingStore) {
+      console.log("[createOrGetStore] Found existing vector store in OpenAI:", matchingStore.id);
+      
+      // Sync to database
+      await prisma.vectorStore.create({
+        data: {
+          brand,
+          vectorStoreId: matchingStore.id
+        }
+      });
+
+      console.log("[createOrGetStore] Synced to database");
+      return { id: matchingStore.id };
+    }
+
     console.log("[createOrGetStore] Creating new vector store in OpenAI");
     
     // Create a new vector store using the REST API
-    const client = getOpenAIClient();
-    
-    // Vector Stores API is at the top level in SDK v6+
     const vectorStore = await client.vectorStores.create({
       name: `${brand} Knowledge Base`
     });
@@ -130,7 +151,8 @@ export async function uploadFiles(
 
 /**
  * Lists all files in a vector store with their metadata.
- * Fetches real-time status from OpenAI API and merges with our database metadata.
+ * Syncs files from OpenAI to local database (sync-on-read pattern).
+ * OpenAI is the source of truth - any files in OpenAI but not in DB will be synced.
  * 
  * @param storeId - The OpenAI vector store ID
  * @returns Promise with array of files and their metadata
@@ -140,31 +162,80 @@ export async function listFiles(storeId: string) {
 
   // Get the vector store record from our database
   const vectorStore = await prisma.vectorStore.findFirst({
-    where: { vectorStoreId: storeId },
-    include: {
-      files: {
-        orderBy: { createdAt: 'desc' }
-      }
-    }
+    where: { vectorStoreId: storeId }
   });
 
   if (!vectorStore) {
     return [];
   }
 
-  // Fetch actual file statuses from OpenAI
+  // Fetch ALL files from OpenAI (source of truth)
   try {
     const openAIFiles = await client.vectorStores.files.list(storeId);
     
+    console.log(`[listFiles] Found ${openAIFiles.data.length} files in OpenAI vector store`);
+
+    // Sync: Ensure all OpenAI files exist in our database
+    for (const openAIFile of openAIFiles.data) {
+      const exists = await prisma.fileMetadata.findFirst({
+        where: { fileId: openAIFile.id }
+      });
+
+      if (!exists) {
+        console.log(`[listFiles] Syncing missing file to DB: ${openAIFile.id}`);
+        
+        // Extract metadata from OpenAI attributes
+        const attrs = (openAIFile as any).attributes || {};
+        
+        // Fetch file details to get filename
+        let filename = "Unknown";
+        try {
+          const fileDetails = await client.files.retrieve(openAIFile.id);
+          filename = fileDetails.filename || "Unknown";
+        } catch (error) {
+          console.error(`[listFiles] Could not retrieve file details for ${openAIFile.id}:`, error);
+        }
+
+        // Create database record with metadata from OpenAI attributes
+        await prisma.fileMetadata.create({
+          data: {
+            vectorStoreId: vectorStore.id,
+            fileId: openAIFile.id,
+            docType: attrs.doc_type || "UNKNOWN",
+            brand: attrs.brand || vectorStore.brand,
+            title: attrs.title || filename,
+            effectiveDate: attrs.effective_date,
+            status: openAIFile.status
+          }
+        });
+
+        console.log(`[listFiles] Synced file ${openAIFile.id} to database`);
+      }
+    }
+
+    // Now fetch updated database records
+    const updatedVectorStore = await prisma.vectorStore.findFirst({
+      where: { vectorStoreId: storeId },
+      include: {
+        files: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+
+    if (!updatedVectorStore) {
+      return [];
+    }
+
     // Create a map of fileId -> file info from OpenAI
     const fileInfoMap = new Map<string, any>();
     for (const file of openAIFiles.data) {
       fileInfoMap.set(file.id, file);
     }
 
-    // Fetch detailed file info for each file to get filename and size
+    // Build response with merged data
     const filesWithDetails = await Promise.all(
-      vectorStore.files.map(async (file) => {
+      updatedVectorStore.files.map(async (file) => {
         const openAIFile = fileInfoMap.get(file.fileId);
         
         // Try to get the original file details
@@ -198,8 +269,22 @@ export async function listFiles(storeId: string) {
     return filesWithDetails;
   } catch (error) {
     console.error('[listFiles] Error fetching from OpenAI:', error);
-    // Fallback to database status if OpenAI API fails
-    return vectorStore.files.map((file) => ({
+    
+    // Fallback to database-only if OpenAI API fails
+    const fallbackStore = await prisma.vectorStore.findFirst({
+      where: { vectorStoreId: storeId },
+      include: {
+        files: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    });
+
+    if (!fallbackStore) {
+      return [];
+    }
+
+    return fallbackStore.files.map((file) => ({
       id: file.fileId,
       filename: file.title || "Unknown",
       size: 0,

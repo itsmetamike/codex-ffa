@@ -283,7 +283,7 @@ ${session.parsedBrief.constraints.map(c => `- ${c}`).join('\n')}`;
           brand: null,
           type: 'exploration-selection',
           content: selectedData,
-          step: 4
+          step: 3
         })
       });
 
@@ -313,17 +313,17 @@ ${session.parsedBrief.constraints.map(c => `- ${c}`).join('\n')}`;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-6 py-16">
-      <StepIndicator currentStep={4} />
+      <StepIndicator currentStep={3} />
       
       <PageHeader
-        stepNumber={4}
+        stepNumber={3}
         title="Strategic Exploration"
         description="Identify potential areas of exploration before deep research. Select categories and subcategories that interest you, or skip to ideation."
       />
 
       {/* Previous Generations */}
       {generations.length > 0 && (
-        <GenerationBlocksContainer generations={generations} currentStep={4} />
+        <GenerationBlocksContainer generations={generations} currentStep={3} />
       )}
 
       {/* Exploration Section */}

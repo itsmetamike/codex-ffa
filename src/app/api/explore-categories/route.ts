@@ -212,7 +212,7 @@ Keep subcategories SHORT and PUNCHY.`;
           brand: null,
           type: 'exploration',
           content: JSON.stringify(categoriesData),  // Stringify here like the save endpoint does
-          step: 4
+          step: 3
         }
       });
     } catch (dbError) {

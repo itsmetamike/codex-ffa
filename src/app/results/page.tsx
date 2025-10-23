@@ -136,6 +136,11 @@ export default function ResultsPage() {
                 rationale: ''
               }]);
             }
+            // Restore consultation chat messages
+            if (content.data?.consultationChat && Array.isArray(content.data.consultationChat)) {
+              setMessages(content.data.consultationChat);
+              setHasInitiatedChat(true);
+            }
           }
         }
       }
@@ -481,17 +486,17 @@ export default function ResultsPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-6 py-16">
-      <StepIndicator currentStep={5} />
+      <StepIndicator currentStep={4} />
       
       <PageHeader
-        stepNumber={5}
+        stepNumber={4}
         title="Pre-Research Consultation"
         description="Discuss your campaign strategy with our research consultant to finalize your single research topic for the deep research phase."
       />
 
       {/* Referenced Files */}
       {generations.length > 0 && (
-        <GenerationBlocksContainer generations={generations} currentStep={5} />
+        <GenerationBlocksContainer generations={generations} currentStep={4} />
       )}
 
 
@@ -924,7 +929,7 @@ export default function ResultsPage() {
         </section>
       )}
 
-      {/* Section 4: Research Context Generated - Navigate to Step 6 */}
+      {/* Section 4: Research Context Generated - Navigate to Step 5 */}
       {researchTopics.length > 0 && researchTopics[0] && deepResearchPrompt && (
         <section className="rounded-xl border border-gold/50 bg-gold/10 p-6 space-y-4">
           <div className="flex items-center gap-2">
@@ -932,7 +937,7 @@ export default function ResultsPage() {
             <h2 className="text-xl font-semibold text-gold">Research Context Generated</h2>
           </div>
           <p className="text-sm text-slate-300">
-            Your comprehensive research context is ready! Proceed to Step 6 to start deep research analysis.
+            Your comprehensive research context is ready! Proceed to Step 5 to start deep research analysis.
           </p>
           <button
             onClick={() => router.push('/deep-research')}
@@ -952,9 +957,9 @@ export default function ResultsPage() {
             The consultation chat requires at least one of the following:
           </p>
           <ul className="list-disc list-inside text-sm text-slate-400 mt-3 space-y-1">
+            <li>Context Pack (Step 1)</li>
             <li>Strategy Brief (Step 2)</li>
-            <li>Context Pack (Step 3)</li>
-            <li>Exploration Categories (Step 4)</li>
+            <li>Exploration Categories (Step 3)</li>
           </ul>
           <p className="text-sm text-slate-400 mt-4">
             Please complete previous steps to access the pre-research consultation.

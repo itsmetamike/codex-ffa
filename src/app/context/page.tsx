@@ -101,7 +101,7 @@ export default function ContextPage() {
           // Check each brand for most recent file
           for (const brandName of brandsData.brands) {
             try {
-              const filesResponse = await fetch(`/api/vectorstore/list?brand=${encodeURIComponent(brandName)}`);
+              const filesResponse = await fetch(`/api/knowledge-hub/list?brand=${encodeURIComponent(brandName)}`);
               const filesData = await filesResponse.json();
               
               if (filesData.files && filesData.files.length > 0) {
@@ -147,11 +147,11 @@ export default function ContextPage() {
 
     try {
       // Get vector store ID for the brand
-      const vectorStoreResponse = await fetch(`/api/vectorstore/list?brand=${encodeURIComponent(brand)}`);
+      const vectorStoreResponse = await fetch(`/api/knowledge-hub/list?brand=${encodeURIComponent(brand)}`);
       const vectorStoreData = await vectorStoreResponse.json();
 
       if (!vectorStoreData.storeId) {
-        setContextError(`No vector store found for brand "${brand}". Please upload documents first at /ingest.`);
+        setContextError(`No vector store found for brand "${brand}". Please upload documents first in the Knowledge Hub.`);
         setIsLoadingContext(false);
         return;
       }
@@ -248,7 +248,7 @@ export default function ContextPage() {
           brand: brandName,
           type: 'context',
           content: contextPack,
-          step: 2
+          step: 1
         })
       });
       
@@ -265,17 +265,17 @@ export default function ContextPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-6 py-16">
-      <StepIndicator currentStep={2} />
+      <StepIndicator currentStep={1} />
       
       <PageHeader
-        stepNumber={2}
+        stepNumber={1}
         title="Context Builder"
         description="Retrieve and synthesize all relevant internal brand intelligence into a unified Context Pack — structured summaries from your vector store filtered by the expanded taxonomy."
       />
 
       {/* Previous Generations */}
       {generations.length > 0 && (
-        <GenerationBlocksContainer generations={generations} currentStep={2} />
+        <GenerationBlocksContainer generations={generations} currentStep={1} />
       )}
 
       {/* Context Builder Section */}

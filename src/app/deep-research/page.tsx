@@ -15,6 +15,9 @@ type DeepResearchJob = {
   result?: {
     outputText: string;
     output: any[];
+    researchNotebook?: string;
+    structuredData?: any;
+    phase?: 'research' | 'structuring' | 'completed';
   };
   error?: string;
   toolCalls?: any[];
@@ -28,9 +31,9 @@ export default function DeepResearchPage() {
   const [deepResearchPrompt, setDeepResearchPrompt] = useState<string | null>(null);
   const [deepResearchJob, setDeepResearchJob] = useState<DeepResearchJob | null>(null);
   const [isStartingResearch, setIsStartingResearch] = useState(false);
-  const [isStartingLiteResearch, setIsStartingLiteResearch] = useState(false);
-  const [researchMode, setResearchMode] = useState<'lite' | 'full'>('lite');
-  const [useWebSearch, setUseWebSearch] = useState(false);
+  const [isStructuring, setIsStructuring] = useState(false);
+  const [viewMode, setViewMode] = useState<'markdown' | 'structured'>('markdown');
+  const [researchTemplate, setResearchTemplate] = useState<'strategy' | 'big-idea'>('strategy');
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -62,8 +65,32 @@ export default function DeepResearchPage() {
           }
         }
       }
+
+      // Load existing deep research job
+      await loadDeepResearchJob();
     } catch (err) {
       console.error("Error loading generations:", err);
+    }
+  };
+
+  const loadDeepResearchJob = async () => {
+    if (!session?.id) return;
+
+    try {
+      const response = await fetch(`/api/deep-research/status?sessionId=${session.id}`);
+      const data = await response.json();
+
+      if (data.success && data.job) {
+        setDeepResearchJob({
+          jobId: data.job.id,
+          status: data.job.status,
+          result: data.job.result ? (typeof data.job.result === 'string' ? JSON.parse(data.job.result) : data.job.result) : null,
+          error: data.job.error,
+          toolCalls: data.job.toolCalls ? (typeof data.job.toolCalls === 'string' ? JSON.parse(data.job.toolCalls) : data.job.toolCalls) : null
+        });
+      }
+    } catch (err) {
+      console.error("Error loading deep research job:", err);
     }
   };
 
@@ -100,43 +127,6 @@ export default function DeepResearchPage() {
     }
   }, [deepResearchJob?.jobId, deepResearchJob?.status]);
 
-  const handleStartLiteResearch = async () => {
-    if (!session?.id || isStartingLiteResearch) return;
-
-    setIsStartingLiteResearch(true);
-    try {
-      const response = await fetch('/api/deep-research/lite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          sessionId: session.id,
-          useWebSearch
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setDeepResearchJob({
-          jobId: data.jobId,
-          status: data.status || 'queued'
-        });
-        
-        setTimeout(() => {
-          console.log('[Lite Research] Starting status polling for job:', data.jobId);
-        }, 1000);
-      } else {
-        console.error('Failed to start lite research:', data.error);
-        alert(`Failed to start research: ${data.error}`);
-      }
-    } catch (error) {
-      console.error('Error starting lite research:', error);
-      alert('An error occurred while starting the research.');
-    } finally {
-      setIsStartingLiteResearch(false);
-    }
-  };
-
   const handleStartDeepResearch = async () => {
     if (!session?.id || isStartingResearch) return;
 
@@ -145,7 +135,10 @@ export default function DeepResearchPage() {
       const response = await fetch('/api/deep-research/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: session.id })
+        body: JSON.stringify({ 
+          sessionId: session.id,
+          template: researchTemplate 
+        })
       });
 
       const data = await response.json();
@@ -200,19 +193,48 @@ export default function DeepResearchPage() {
     }
   };
 
+  const handleStructureResearch = async () => {
+    if (!deepResearchJob?.jobId || isStructuring) return;
+
+    setIsStructuring(true);
+    try {
+      const response = await fetch('/api/deep-research/structure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: deepResearchJob.jobId })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Refresh the job to get updated structured data
+        await checkResearchStatus(deepResearchJob.jobId);
+        setViewMode('structured');
+      } else {
+        console.error('Failed to structure research:', data.error);
+        alert(`Failed to structure research: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error structuring research:', error);
+      alert('An error occurred while structuring the research.');
+    } finally {
+      setIsStructuring(false);
+    }
+  };
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-6 py-16">
-      <StepIndicator currentStep={6} />
+      <StepIndicator currentStep={5} />
       
       <PageHeader
-        stepNumber={6}
+        stepNumber={5}
         title="Deep Research"
         description="Generate comprehensive strategic research using AI-powered analysis with web search and data validation."
       />
 
       {/* Referenced Files */}
       {generations.length > 0 && (
-        <GenerationBlocksContainer generations={generations} currentStep={6} />
+        <GenerationBlocksContainer generations={generations} currentStep={5} />
       )}
 
       {/* Research Context Display */}
@@ -232,76 +254,46 @@ export default function DeepResearchPage() {
             </pre>
           </div>
           
-          {/* Research Mode Toggle */}
-          <div className="flex items-center gap-4 p-4 rounded-lg bg-slate-800/50 border border-slate-700">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <input
-                  type="radio"
-                  id="lite-mode"
-                  name="research-mode"
-                  checked={researchMode === 'lite'}
-                  onChange={() => setResearchMode('lite')}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <label htmlFor="lite-mode" className="text-sm font-medium text-slate-100">
-                  Lite Research (Recommended)
-                </label>
-              </div>
-              <p className="text-xs text-slate-400 ml-6">
-                Fast, cost-effective. Single strategy with frameworks. Uses o4-mini-deep-research.
-              </p>
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <input
-                  type="radio"
-                  id="full-mode"
-                  name="research-mode"
-                  checked={researchMode === 'full'}
-                  onChange={() => setResearchMode('full')}
-                  className="w-4 h-4 text-purple-600"
-                />
-                <label htmlFor="full-mode" className="text-sm font-medium text-slate-100">
-                  Full Deep Research
-                </label>
-              </div>
-              <p className="text-xs text-slate-400 ml-6">
-                Comprehensive, expensive ($10-100+). 3 strategies, extensive research. Uses o3-deep-research.
-              </p>
+          {/* Template Selection */}
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-slate-200">Research Type</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setResearchTemplate('strategy')}
+                className={`p-4 rounded-lg border-2 transition-all text-left ${
+                  researchTemplate === 'strategy'
+                    ? 'border-purple-500 bg-purple-500/10'
+                    : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                }`}
+              >
+                <div className="font-medium text-slate-100 mb-1">Strategy Research</div>
+                <div className="text-xs text-slate-400">
+                  Three differentiated strategies with frameworks (TOWS, McKinsey 7S, Three Horizons)
+                </div>
+              </button>
+              <button
+                onClick={() => setResearchTemplate('big-idea')}
+                className={`p-4 rounded-lg border-2 transition-all text-left ${
+                  researchTemplate === 'big-idea'
+                    ? 'border-purple-500 bg-purple-500/10'
+                    : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                }`}
+              >
+                <div className="font-medium text-slate-100 mb-1">Big Idea Research</div>
+                <div className="text-xs text-slate-400">
+                  One comprehensive execution idea with intricate tactical details and exact budgets
+                </div>
+              </button>
             </div>
           </div>
 
-          {/* Web Search Toggle (only for Lite mode) */}
-          {researchMode === 'lite' && (
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/30 border border-slate-700">
-              <input
-                type="checkbox"
-                id="web-search"
-                checked={useWebSearch}
-                onChange={(e) => setUseWebSearch(e.target.checked)}
-                className="w-4 h-4 text-blue-600"
-              />
-              <div className="flex-1">
-                <label htmlFor="web-search" className="text-sm font-medium text-slate-100 cursor-pointer">
-                  Enable Web Search
-                </label>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {useWebSearch 
-                    ? "Cost: ~$0.50-2.00 | Searches web for current data (1-3 min)"
-                    : "Cost: ~$0.01 | Uses only provided context (5-15 sec)"}
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Start Research Button */}
           <button
-            onClick={researchMode === 'lite' ? handleStartLiteResearch : handleStartDeepResearch}
-            disabled={(researchMode === 'lite' ? isStartingLiteResearch : isStartingResearch)}
+            onClick={handleStartDeepResearch}
+            disabled={isStartingResearch}
             className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-purple-600 hover:bg-purple-700"
           >
-            {(researchMode === 'lite' ? isStartingLiteResearch : isStartingResearch) ? (
+            {isStartingResearch ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Starting Research...
@@ -309,7 +301,7 @@ export default function DeepResearchPage() {
             ) : (
               <>
                 <Sparkles className="h-4 w-4" />
-                {researchMode === 'lite' ? 'Start Lite Research' : 'Start Full Deep Research'}
+                Start Deep Research
               </>
             )}
           </button>
@@ -343,9 +335,7 @@ export default function DeepResearchPage() {
           {(deepResearchJob.status === 'pending' || deepResearchJob.status === 'queued' || deepResearchJob.status === 'in_progress') && (
             <div className="space-y-3">
               <p className="text-sm text-slate-300">
-                {researchMode === 'lite' 
-                  ? `The o4-mini-deep-research model is ${useWebSearch ? 'searching the web and ' : ''}analyzing your context to create a focused strategy. This typically takes ${useWebSearch ? '1-3 minutes' : '10-30 seconds'}.`
-                  : 'The o3-deep-research model is analyzing hundreds of sources to create your comprehensive strategy report. This typically takes 10-30 minutes depending on complexity.'}
+                The deep research model is searching the web and analyzing your context to create comprehensive strategic recommendations. This typically takes 2-5 minutes.
               </p>
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
@@ -395,9 +385,87 @@ export default function DeepResearchPage() {
                 </div>
               )}
 
+              {/* View Mode Toggle & Structure Button */}
+              <div className="flex items-center justify-between gap-4 p-4 rounded-lg bg-slate-800/50 border border-slate-700">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setViewMode('markdown')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      viewMode === 'markdown'
+                        ? 'bg-purple-500 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    Research Notebook
+                  </button>
+                  <button
+                    onClick={() => setViewMode('structured')}
+                    disabled={!deepResearchJob.result.structuredData}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      viewMode === 'structured'
+                        ? 'bg-purple-500 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed'
+                    }`}
+                  >
+                    Structured Output
+                  </button>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  {!deepResearchJob.result.structuredData ? (
+                    <button
+                      onClick={handleStructureResearch}
+                      disabled={isStructuring}
+                      className="px-4 py-2 rounded-lg bg-gold text-slate-900 font-medium text-sm hover:bg-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isStructuring ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Structuring...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4" />
+                          Generate Structured Output
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleStructureResearch}
+                      disabled={isStructuring}
+                      className="px-4 py-2 rounded-lg bg-slate-700 text-slate-200 font-medium text-sm hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isStructuring ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Regenerating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4" />
+                          Regenerate Structured Output
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* Research Result */}
               <div className="rounded-lg border border-purple-500/30 bg-slate-900/50 p-6">
-                <h3 className="text-lg font-semibold text-slate-100 mb-4">Strategic Research Report</h3>
+                {viewMode === 'markdown' && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-100 mb-4">Research Notebook (Full Analysis)</h3>
+                    <div className="prose prose-invert prose-sm max-w-none">
+                      <ReactMarkdown>{deepResearchJob.result.researchNotebook || deepResearchJob.result.outputText}</ReactMarkdown>
+                    </div>
+                  </div>
+                )}
+
+                {viewMode === 'structured' && deepResearchJob.result.structuredData && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-100 mb-4">Strategic Research Report (Structured)</h3>
                 {(() => {
                   const cleanText = (text: string | undefined): string => {
                     if (!text) return '';
@@ -429,13 +497,8 @@ export default function DeepResearchPage() {
                   };
 
                   try {
-                    // First, try to clean the output text (remove markdown code blocks if present)
-                    let cleanedText = deepResearchJob.result.outputText.trim();
-                    
-                    // Remove markdown code block markers
-                    cleanedText = cleanedText.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
-                    
-                    const jsonResult = JSON.parse(cleanedText);
+                    // Use the structured data from Phase 2
+                    const jsonResult = deepResearchJob.result.structuredData;
                     const strategy = extractStrategy(jsonResult);
                     
                     if (strategy && strategy.title) {
@@ -611,6 +674,8 @@ export default function DeepResearchPage() {
                     </div>
                   );
                 })()}
+                  </div>
+                )}
               </div>
 
               {deepResearchJob.completedAt && (
@@ -628,13 +693,13 @@ export default function DeepResearchPage() {
         <section className="rounded-xl border border-amber-500/50 bg-amber-500/10 p-6">
           <h2 className="text-lg font-semibold text-amber-400 mb-2">Research Context Required</h2>
           <p className="text-sm text-slate-300">
-            You need to complete the Pre-Research Consultation (Step 5) and generate a research context before starting deep research.
+            You need to complete the Pre-Research Consultation (Step 4) and generate a research context before starting deep research.
           </p>
           <button
             onClick={handleBack}
             className="mt-4 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium transition-colors"
           >
-            Go to Step 5
+            Go to Step 4
           </button>
         </section>
       )}

@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDeepResearchClient } from "@/lib/openai";
 import { getModel } from "@/config/models";
 import { prisma } from "@/lib/prisma";
+import { 
+  DEEP_RESEARCH_STRATEGY_TEMPLATE,
+  DEEP_RESEARCH_BIG_IDEA_TEMPLATE 
+} from "@/lib/deepResearchNotebookTemplate";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { sessionId } = body;
+    const { sessionId, template = 'strategy' } = body;
 
     if (!sessionId) {
       return NextResponse.json(
@@ -31,11 +35,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const researchPackage = typeof contextGen.content === 'string'
-      ? JSON.parse(contextGen.content)
-      : contextGen.content;
+    let researchPackage;
+    try {
+      researchPackage = typeof contextGen.content === 'string'
+        ? JSON.parse(contextGen.content)
+        : contextGen.content;
+    } catch (parseError: any) {
+      console.error("[Deep Research] Error parsing research context:", parseError);
+      console.error("[Deep Research] Content type:", typeof contextGen.content);
+      console.error("[Deep Research] Content preview:", 
+        typeof contextGen.content === 'string' 
+          ? contextGen.content.substring(0, 200) + '...'
+          : 'Not a string'
+      );
+      return NextResponse.json(
+        { success: false, error: "Failed to parse research context JSON", details: parseError?.message || 'Unknown parse error' },
+        { status: 400 }
+      );
+    }
 
     if (!researchPackage.deepResearchPrompt) {
+      console.error("[Deep Research] Research package structure:", Object.keys(researchPackage));
       return NextResponse.json(
         { success: false, error: "Deep research prompt not found in research context." },
         { status: 400 }
@@ -53,9 +73,9 @@ export async function POST(request: NextRequest) {
       where: { id: sessionId }
     });
 
-    // Build tools array
+    // Build tools array - always include web search, code interpreter, and file search if available
     const tools: any[] = [
-      { type: "web_search_preview" },
+      { type: "web_search_preview" }, // Always enabled for comprehensive research
       {
         type: "code_interpreter",
         container: { type: "auto" }
@@ -72,10 +92,20 @@ export async function POST(request: NextRequest) {
 
     console.log("[Deep Research] Tools configured:", JSON.stringify(tools, null, 2));
 
-    // Start background deep research
+    // Select template based on request
+    const selectedTemplate = template === 'big-idea' 
+      ? DEEP_RESEARCH_BIG_IDEA_TEMPLATE 
+      : DEEP_RESEARCH_STRATEGY_TEMPLATE;
+    
+    console.log("[Deep Research] Using template:", template);
+
+    // Build Phase 1 prompt (natural research output, no JSON)
+    const phase1Prompt = `${selectedTemplate}\n\n---\n\n${researchPackage.deepResearchPrompt}`;
+
+    // Start background deep research (Phase 1: Natural Output)
     const response = await client.responses.create({
       model,
-      input: researchPackage.deepResearchPrompt,
+      input: phase1Prompt,
       background: true,
       tools,
       reasoning: {
@@ -95,7 +125,8 @@ export async function POST(request: NextRequest) {
         sessionId,
         responseId: response.id,
         status: response.status || "pending",
-        prompt: researchPackage.deepResearchPrompt
+        prompt: researchPackage.deepResearchPrompt,
+        template: template // Store template type for Phase 2
       }
     });
 

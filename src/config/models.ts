@@ -16,7 +16,7 @@ const DEFAULT_MODELS: ModelConfig = {
   SCORING_MODEL: "gpt-4o-mini",
   REASONING_MODEL: "o1-preview",
   EMBEDDING_MODEL: "text-embedding-3-large",
-  DEEP_RESEARCH_MODEL: "o3-deep-research"
+  DEEP_RESEARCH_MODEL: "o4-mini-deep-research-2025-06-26"
 };
 
 function readEnvModel(key: ModelKey) {

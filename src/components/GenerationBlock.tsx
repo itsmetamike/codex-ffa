@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Sparkles, ChevronDown, Edit2 } from "lucide-react";
 import { useState } from "react";
 
-type GenerationType = "context" | "brief" | "exploration-selection";
+type GenerationType = "context" | "brief" | "exploration-selection" | "research-context";
 
 interface GenerationBlockProps {
   type: GenerationType;
@@ -33,6 +33,12 @@ const typeConfig: Record<GenerationType, { color: string; bgColor: string; borde
     bgColor: "bg-gold/10",
     borderColor: "border-gold/30",
     route: "/workflow"
+  },
+  "research-context": {
+    color: "text-gold",
+    bgColor: "bg-gold/10",
+    borderColor: "border-gold/30",
+    route: "/results"
   }
 };
 
@@ -126,9 +132,10 @@ export function GenerationBlocksContainer({ generations, currentStep }: Generati
   const visibleGenerations = currentStep 
     ? generations.filter(g => {
         const stepMap: Record<string, number> = {
-          context: 2,
-          brief: 3,
-          "exploration-selection": 4
+          context: 1,
+          brief: 2,
+          "exploration-selection": 3,
+          "research-context": 4
         };
         return stepMap[g.type] && stepMap[g.type] < currentStep;
       })
@@ -152,7 +159,8 @@ export function GenerationBlocksContainer({ generations, currentStep }: Generati
     const titles: Record<GenerationType, string> = {
       context: "Context Pack",
       brief: "Strategy Brief",
-      "exploration-selection": "Exploration Categories"
+      "exploration-selection": "Exploration Categories",
+      "research-context": "Research Context"
     };
     return titles[type];
   };
@@ -174,6 +182,8 @@ export function GenerationBlocksContainer({ generations, currentStep }: Generati
             return `${totalSubs} categories selected`;
           }
           return "Categories selected";
+        case "research-context":
+          return parsed.summary?.strategicFocus?.substring(0, 100) || "Research context generated";
         default:
           return "Generated content";
       }

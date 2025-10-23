@@ -132,18 +132,30 @@ export default function BriefPage() {
         }),
       });
 
-      const analyzeData = await analyzeResponse.json();
-
-      if (analyzeData.success && analyzeData.data.questions.length > 0) {
-        setQuestions(analyzeData.data.questions);
-        setConversation([{
-          type: "question",
-          content: analyzeData.data.questions[0].question,
-          field: analyzeData.data.questions[0].field
-        }]);
-      } else {
-        // No questions, show result immediately
+      if (!analyzeResponse.ok) {
+        console.error('[Brief] Analyze API error:', analyzeResponse.status, analyzeResponse.statusText);
+        // If analysis fails, still show the result
         setShowResult(true);
+      } else {
+        const analyzeData = await analyzeResponse.json();
+
+        console.log('[Brief] Analyze response:', analyzeData);
+
+        if (analyzeData.success && analyzeData.data?.questions && analyzeData.data.questions.length > 0) {
+          console.log('[Brief] Found questions:', analyzeData.data.questions.length);
+          setQuestions(analyzeData.data.questions);
+          setConversation([{
+            type: "question",
+            content: analyzeData.data.questions[0].question,
+            field: analyzeData.data.questions[0].field
+          }]);
+          // Don't show result yet - show Q&A instead
+          setShowResult(false);
+        } else {
+          // No questions, show result immediately
+          console.log('[Brief] No questions found, showing result');
+          setShowResult(true);
+        }
       }
       
       setAnalysisComplete(true);
@@ -388,7 +400,7 @@ export default function BriefPage() {
           sessionId: session.id,
           type: 'brief',
           content: contentWithConversation,
-          step: 3
+          step: 2
         })
       });
       
@@ -405,17 +417,17 @@ export default function BriefPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-6 py-16">
-      <StepIndicator currentStep={3} />
+      <StepIndicator currentStep={2} />
       
       <PageHeader
-        stepNumber={3}
+        stepNumber={2}
         title="Strategy Brief"
         description="Parse your marketing brief into structured JSON with objectives, audience, timing, KPIs, and constraints."
       />
 
       {/* Previous Generations */}
       {generations.length > 0 && (
-        <GenerationBlocksContainer generations={generations} currentStep={3} />
+        <GenerationBlocksContainer generations={generations} currentStep={2} />
       )}
 
       <section className="space-y-4">

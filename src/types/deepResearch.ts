@@ -21,6 +21,9 @@ export interface DeepResearchJob {
 export interface DeepResearchResult {
   outputText: string;
   output: OutputItem[];
+  researchNotebook?: string; // Phase 1: Full markdown research
+  structuredData?: any; // Phase 2: Extracted JSON
+  phase?: 'research' | 'structuring' | 'completed';
 }
 
 export type OutputItem = 

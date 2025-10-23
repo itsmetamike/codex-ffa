@@ -6,21 +6,27 @@ import { DEEP_RESEARCH_TEMPLATE } from "@/lib/deepResearchTemplate";
 
 const CONSULTATION_SYSTEM_PROMPT = `You are an experienced market research consultant having a casual, collaborative conversation with a marketing strategist. This is a pre-research consultation—think of it as a working session over coffee, not a formal presentation.
 
+IMPORTANT CONTEXT: The "exploration areas" or "categories" they've selected are NOT concrete plans or tactics they're committed to. They're simply interesting strategic directions they want to explore and understand better. Your job is to help them think through what's appealing about these ideas and what they'd want to learn.
+
 Your tone should be:
 - **Conversational and natural** - Talk like a real person, not a textbook. Use contractions, casual phrasing, and a friendly tone.
-- **Curious and collaborative** - Ask genuine questions. Show you're thinking through this together.
+- **Curious and exploratory** - Ask genuine questions about what intrigues them. Show you're thinking through possibilities together.
 - **Concise and punchy** - Keep it BRIEF. 1-2 short paragraphs max. Each paragraph should be 2-3 sentences. No more.
 - **Direct and practical** - Skip the formalities. Get straight to the interesting questions and ideas.
 
 Your role:
-- Help them think through what they really need to research
-- Bounce ideas around and explore angles they might not have considered
-- Ask ONE focused follow-up question per response
+- Help them articulate what's appealing or interesting about different strategic directions
+- Explore what they'd want to understand better about these ideas
+- Ask ONE focused question per response about appeal, potential, or what they're curious about
 - Reference their specific campaign details naturally in conversation
 
 Style guidelines:
+- DON'T ask about execution, differentiation, or "how they're planning to" do things—these are explorations, not plans
+- DO ask about appeal, potential, what's interesting, what they'd want to learn
+- Good questions: "What's the appeal of X?" "What intrigues you about Y?" "What would you want to understand about Z?"
+- Bad questions: "How are you planning to differentiate X?" "What's your approach to Y?"
 - Avoid formal structures like "Here are a few angles to consider:" or "Would this approach help achieve..."
-- Instead, be more natural: "I'm curious about..." or "What if you..." or "Have you thought about..."
+- Instead, be more natural: "I'm curious what draws you to..." or "What's interesting about..." or "What would you want to learn about..."
 - Don't use bullet points or numbered lists—just talk it through
 - Keep it human and engaging, like you're genuinely interested in their project
 - CRITICAL: Be brief. Don't ask multiple questions in one response. Pick the ONE most important thing to explore.
@@ -103,11 +109,11 @@ export async function POST(request: NextRequest) {
       }
 
       // Build initiation prompt
-      let initiationPrompt = `Start this consultation naturally. Look at their campaign and the exploration areas they've picked, then open with a warm, conversational greeting.
+      let initiationPrompt = `Start this consultation naturally. Look at their campaign and the exploration areas they've selected (remember: these are just ideas they're curious about, not concrete plans).
 
-Show you've looked at their work—mention something specific about their objective or the areas they want to explore. Then ask ONE focused question to understand what they're most curious about.
+Open with a warm, conversational greeting. Show you've looked at their work—mention something specific about their objective or what seems interesting about the areas they're exploring. Then ask ONE focused question about what appeals to them or what they'd want to understand better.
 
-Keep it VERY brief—just 1-2 short paragraphs (2-3 sentences each). No lists or formal structures. Talk like you're genuinely interested in helping them figure this out.
+Keep it VERY brief—just 1-2 short paragraphs (2-3 sentences each). No lists or formal structures. Talk like you're genuinely interested in helping them explore these ideas.
 
 CAMPAIGN CONTEXT:\n\n`;
 
@@ -291,11 +297,210 @@ CAMPAIGN CONTEXT:\n\n`;
       const explorationCategoriesJson = explorationCategories;
       const consultationChatJson = messages;
 
-      // Build the full deep research prompt
-      const deepResearchPrompt = `# Deep Research Ideation Layer — Generalized Prompt (with TOWS, 7S, Three Horizons + Placements/Compliance/AI)
+      // Retrieve relevant documents from knowledge hub based on combined context
+      let relevantDocs = null;
+      console.log('[Consultation] Starting document retrieval...');
+      console.log('[Consultation] Context pack exists:', !!contextPack);
+      
+      // Get brand name from the context pack's session
+      let brandName = null;
+      if (contextPack) {
+        try {
+          // The context pack doesn't have a brand field directly, but we can get it from the vector store
+          // associated with this session. Let's find the vector store by looking at what was used
+          // to create the context pack.
+          const contextGen = await prisma.generation.findFirst({
+            where: {
+              sessionId,
+              type: 'context'
+            },
+            orderBy: { createdAt: 'desc' }
+          });
+          
+          if (contextGen?.brand) {
+            brandName = contextGen.brand;
+            console.log('[Consultation] Brand from context generation:', brandName);
+          }
+        } catch (err) {
+          console.error('[Consultation] Error getting brand name:', err);
+        }
+      }
+      
+      console.log('[Consultation] Brand name for retrieval:', brandName);
+      
+      if (brandName) {
+        try {
+          const vectorStore = await prisma.vectorStore.findFirst({
+            where: { brand: brandName }
+          });
 
-## Role (system)
-You are a **Strategic Researcher** embedded in an **ideation layer**. Your job is to generate three distinct, well-researched strategies for the given brand/problem using the supplied datasets. Create **novel but bounded** options with clear differentiation, feasibility, risk controls, measurement plans, and compliance mapping. **Incorporate** TOWS (SO/ST/WO/WT), McKinsey 7S alignment, and Three Horizons classification **for each strategy**. Return **only valid JSON** that conforms exactly to the provided schema. **Do not include chain-of-thought.**
+          console.log('[Consultation] Vector store found:', vectorStore ? 'Yes' : 'No');
+          console.log('[Consultation] Vector store ID:', vectorStore?.vectorStoreId);
+
+          if (vectorStore?.vectorStoreId) {
+            // Build a comprehensive, thematic query that extracts key topics and themes
+            // rather than looking for exact matches to exploration categories
+            let searchTopics = [];
+            let searchContext = [];
+
+            // Extract core themes from the brief
+            if (parsedBrief) {
+              // Parse objective for key themes (e.g., "STEM toys", "educational influencers")
+              const objectiveThemes = parsedBrief.objective.match(/\b(?:STEM|educational?|influencers?|toys?|learning|engagement|community|trust|credibility|brand)\b/gi) || [];
+              searchTopics.push(...new Set(objectiveThemes.map(t => t.toLowerCase())));
+              
+              // Add audience themes
+              const audienceThemes = parsedBrief.audience.match(/\b(?:parents?|educators?|teachers?|families|children|students?|learning|educational?)\b/gi) || [];
+              searchTopics.push(...new Set(audienceThemes.map(t => t.toLowerCase())));
+              
+              searchContext.push(`Campaign focus: ${parsedBrief.objective.substring(0, 200)}`);
+            }
+
+            // Extract themes from exploration categories (broader concepts, not specific tactics)
+            if (explorationCategories && explorationCategories.length > 0) {
+              explorationCategories.forEach((cat: any) => {
+                // Add category name as a theme
+                searchTopics.push(cat.name.toLowerCase());
+                
+                // Extract key words from subcategories
+                if (cat.subcategories) {
+                  cat.subcategories.forEach((sub: string) => {
+                    const words = sub.match(/\b(?:[A-Z][a-z]+)\b/g) || [];
+                    searchTopics.push(...words.map(w => w.toLowerCase()));
+                  });
+                }
+              });
+            }
+
+            // Add themes from consultation insights
+            if (summaryData.summary?.keyInsights) {
+              summaryData.summary.keyInsights.forEach((insight: string) => {
+                const themes = insight.match(/\b(?:influencers?|storytelling|engagement|networks?|sharing|family|discussions?|play|content)\b/gi) || [];
+                searchTopics.push(...new Set(themes.map(t => t.toLowerCase())));
+              });
+            }
+
+            // Add research priority themes
+            if (summaryData.summary?.researchPriorities) {
+              summaryData.summary.researchPriorities.forEach((priority: string) => {
+                const themes = priority.match(/\b(?:engagement|sharing|networks?|influencers?|discussions?|perceptions?|educational?|play)\b/gi) || [];
+                searchTopics.push(...new Set(themes.map(t => t.toLowerCase())));
+              });
+            }
+
+            // Add focus area themes
+            if (focusAreas && focusAreas.length > 0) {
+              searchTopics.push(...focusAreas.map(area => area.toLowerCase()));
+            }
+
+            // Deduplicate and create a rich search query
+            const uniqueTopics = [...new Set(searchTopics)].filter(t => t.length > 3);
+            
+            const searchQuery = `Find brand documents, strategies, case studies, and insights related to these themes and topics:
+
+Key Topics: ${uniqueTopics.join(', ')}
+
+Campaign Context:
+${searchContext.join('\n')}
+
+Strategic Focus: ${summaryData.summary?.strategicFocus || 'Not specified'}
+
+Research Priorities:
+${summaryData.summary?.researchPriorities?.map((p: string) => `- ${p}`).join('\n') || 'None specified'}
+
+Please retrieve any relevant information about:
+- Past campaigns or strategies involving these themes
+- Audience insights related to these topics
+- Performance data or learnings from similar initiatives
+- Brand guidelines or positioning related to these areas
+- Partnership or collaboration examples
+- Content strategies or creative approaches
+- Market research or competitive intelligence
+
+Focus on information that would help inform strategic decisions for this campaign, even if it doesn't directly mention the specific exploration ideas.`;
+
+            console.log('[Consultation] Retrieving relevant docs with topics:', uniqueTopics.slice(0, 10).join(', '));
+
+            // Create a thread with file_search to retrieve relevant content
+            const thread = await client.beta.threads.create({
+              tool_resources: {
+                file_search: {
+                  vector_store_ids: [vectorStore.vectorStoreId]
+                }
+              }
+            });
+
+            // Add the search query
+            await client.beta.threads.messages.create(thread.id, {
+              role: "user",
+              content: searchQuery
+            });
+
+            // Create a temporary assistant for file search
+            const assistant = await client.beta.assistants.create({
+              name: "Document Retrieval Assistant",
+              instructions: "You are a research assistant that extracts relevant information from brand documents based on campaign context. Provide insights and recommendations without citation markers or source references. Focus on actionable insights, strategies, and data points that would inform strategic research.",
+              model: "gpt-4o-mini",
+              tools: [{ type: "file_search" }]
+            });
+
+            // Run with file_search
+            const run = await client.beta.threads.runs.createAndPoll(thread.id, {
+              assistant_id: assistant.id
+            });
+
+            console.log('[Consultation] Run status:', run.status);
+
+            if (run.status === 'completed') {
+              const threadMessages = await client.beta.threads.messages.list(thread.id);
+              const assistantMessage = threadMessages.data.find(m => m.role === 'assistant');
+              
+              console.log('[Consultation] Assistant message found:', assistantMessage ? 'Yes' : 'No');
+              
+              if (assistantMessage?.content[0]?.type === 'text') {
+                // Get the raw content and clean up citation markers
+                let rawDocs = assistantMessage.content[0].text.value;
+                
+                // Remove citation markers like 【4:0†source】, 【4:2†source】, etc.
+                relevantDocs = rawDocs.replace(/【\d+:\d+†[^】]+】/g, '');
+                
+                console.log('[Consultation] Retrieved relevant docs length:', relevantDocs.length);
+                console.log('[Consultation] Retrieved relevant docs preview:', relevantDocs.substring(0, 200) + '...');
+              } else {
+                console.log('[Consultation] No text content in assistant message');
+              }
+            } else {
+              console.log('[Consultation] Run did not complete successfully. Status:', run.status);
+              if (run.last_error) {
+                console.error('[Consultation] Run error:', run.last_error);
+              }
+            }
+
+            // Clean up the temporary assistant
+            try {
+              await client.beta.assistants.delete(assistant.id);
+              console.log('[Consultation] Assistant cleaned up successfully');
+            } catch (cleanupErr) {
+              console.error('[Consultation] Error cleaning up assistant:', cleanupErr);
+            }
+          } else {
+            console.log('[Consultation] No vector store found for brand:', brandName);
+          }
+        } catch (err) {
+          console.error('[Consultation] Error retrieving relevant docs:', err);
+          console.error('[Consultation] Error stack:', err instanceof Error ? err.stack : 'No stack trace');
+          // Continue without relevant docs if retrieval fails
+        }
+      } else {
+        console.log('[Consultation] No brand name available for document retrieval');
+        console.log('[Consultation] Context pack exists:', !!contextPack);
+      }
+
+      // Build the full deep research prompt
+      const deepResearchPrompt = `# Deep Research Context
+
+## Your Task
+You are a **Strategic Researcher** conducting comprehensive research for the given brand and campaign. Use the supplied datasets to inform your research and strategic recommendations.
 
 ## Inputs (user)
 **DATASETS**  
@@ -323,13 +528,19 @@ ${focusAreas.map((area: string) => `- ${area}`).join('\n')}
 Ensure the strategies and recommendations align with these focus areas where applicable.
 ` : ''}
 
-${DEEP_RESEARCH_TEMPLATE}`;
+${relevantDocs ? `
+**RELEVANT BRAND INTELLIGENCE**
+The following information was retrieved from the brand's knowledge hub based on the campaign context and exploration areas. Use this to inform your strategic recommendations:
+
+${relevantDocs}
+` : ''}`;
 
       // Build the comprehensive research package
       const researchPackage = {
         summary: summaryData.summary,
         deepResearchPrompt: deepResearchPrompt,
         focusAreas: focusAreas || [],
+        relevantDocs: relevantDocs || null,
         data: {
           contextPack: contextPackJson,
           strategyBrief: strategyBriefJson,
@@ -339,14 +550,22 @@ ${DEEP_RESEARCH_TEMPLATE}`;
       };
 
       // Save comprehensive research package to database
+      // Delete any existing research-context generations for this session first
       try {
-        await (prisma as any).generation.create({
+        await prisma.generation.deleteMany({
+          where: {
+            sessionId,
+            type: 'research-context'
+          }
+        });
+
+        await prisma.generation.create({
           data: {
             sessionId,
             brand: null,
             type: 'research-context',
             content: JSON.stringify(researchPackage),
-            step: 5
+            step: 4
           }
         });
       } catch (dbError) {
